@@ -132,6 +132,19 @@ from toolsets_data import (
     register_events_tools
 )
 
+# Import prompts, resources, and templates
+from prompts_recruiting import (
+    register_recruiting_prompts,
+    register_interview_prompts
+)
+from resources_candidates import (
+    register_candidate_resources,
+    register_job_resources
+)
+from templates_emails import (
+    register_email_templates
+)
+
 # Register all toolsets immediately
 register_candidates_tools(mcp, make_request)
 print("  ✓ candidates (28 tools)")
@@ -184,7 +197,29 @@ print("  ✓ backups (3 tools)")
 register_events_tools(mcp)
 print("  ✓ events (5 tools)")
 
-print("\n✅ All 164 tools loaded!\n")
+# Register prompts, resources, and templates
+print("\nLoading prompts, resources, and templates...")
+
+register_recruiting_prompts(mcp, make_request)
+print("  ✓ recruiting prompts (3 prompts)")
+
+register_interview_prompts(mcp, make_request)
+print("  ✓ interview prompts (1 prompt)")
+
+register_candidate_resources(mcp, make_request)
+print("  ✓ candidate resources (2 resources)")
+
+register_job_resources(mcp, make_request)
+print("  ✓ job resources (2 resources)")
+
+register_email_templates(mcp)
+print("  ✓ email templates (5 templates)")
+
+print("\n✅ All loaded:")
+print("   - 164 tools")
+print("   - 4 prompts")
+print("   - 4 resources")
+print("   - 5 templates\n")
 
 if __name__ == "__main__":
     # Just run the server - tools already registered
