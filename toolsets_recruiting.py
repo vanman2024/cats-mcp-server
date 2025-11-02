@@ -2,16 +2,20 @@
 CATS MCP Server - Recruiting Toolsets
 Complete recruiting-focused toolsets for CATS API v3
 """
+from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, Callable, Awaitable
 from fastmcp import FastMCP
+
+# Type alias for make_request callable
+MakeRequestCallable = Callable[[str, str, Optional[dict[str, Any]], Optional[dict[str, Any]]], Awaitable[dict[str, Any]]]
 
 
 # =============================================================================
 # COMPANIES TOOLSET (18 tools)
 # =============================================================================
 
-def register_companies_tools(mcp: FastMCP, make_request):
+def register_companies_tools(mcp: FastMCP, make_request: MakeRequestCallable) -> None:
     """Register all companies-related tools"""
 
     # Main Company Operations
@@ -478,7 +482,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
 # CONTACTS TOOLSET (18 tools)
 # =============================================================================
 
-def register_contacts_tools(mcp: FastMCP, make_request):
+def register_contacts_tools(mcp: FastMCP, make_request: MakeRequestCallable) -> None:
     """Register all contacts-related tools"""
 
     # Main Contact Operations
@@ -982,7 +986,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
 # ACTIVITIES TOOLSET (6 tools)
 # =============================================================================
 
-def register_activities_tools(mcp: FastMCP, make_request):
+def register_activities_tools(mcp: FastMCP, make_request: MakeRequestCallable) -> None:
     """Register all activities-related tools"""
 
     @mcp.tool()
@@ -1110,7 +1114,7 @@ def register_activities_tools(mcp: FastMCP, make_request):
 # PORTALS TOOLSET (8 tools)
 # =============================================================================
 
-def register_portals_tools(mcp: FastMCP, make_request):
+def register_portals_tools(mcp: FastMCP, make_request: MakeRequestCallable) -> None:
     """Register all portals-related tools"""
 
     @mcp.tool()
@@ -1256,7 +1260,7 @@ def register_portals_tools(mcp: FastMCP, make_request):
 # WORK HISTORY TOOLSET (3 tools)
 # =============================================================================
 
-def register_work_history_tools(mcp: FastMCP, make_request):
+def register_work_history_tools(mcp: FastMCP, make_request: MakeRequestCallable) -> None:
     """Register all work history-related tools"""
 
     @mcp.tool()
@@ -1340,7 +1344,7 @@ def register_work_history_tools(mcp: FastMCP, make_request):
 # REGISTRATION FUNCTION
 # =============================================================================
 
-def register_all_recruiting_toolsets(mcp: FastMCP, make_request):
+def register_all_recruiting_toolsets(mcp: FastMCP, make_request: MakeRequestCallable) -> None:
     """
     Register all recruiting toolsets with the MCP server.
 

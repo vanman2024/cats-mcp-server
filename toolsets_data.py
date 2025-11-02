@@ -14,6 +14,7 @@ management in the CATS API v3:
 
 Total: 22 tools across 7 toolsets
 """
+from __future__ import annotations
 
 from typing import Any, Optional
 from fastmcp import FastMCP

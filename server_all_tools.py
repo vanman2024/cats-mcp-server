@@ -1,9 +1,11 @@
 """
 CATS MCP Server - All Tools Loaded at Import Time
 """
+from __future__ import annotations
+
 import os
 import asyncio
-from typing import Any, Optional
+from typing import Any, Optional, Callable, Awaitable
 import httpx
 from dotenv import load_dotenv
 from fastmcp import FastMCP

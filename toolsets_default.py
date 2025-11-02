@@ -3,9 +3,13 @@ CATS MCP Server - Default Toolsets
 Comprehensive toolset registration functions for candidates, jobs, pipelines, context, and tasks.
 Based on CATS API v3: https://api.catsone.com/v3
 """
+from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, Callable, Awaitable
 from fastmcp import FastMCP
+
+# Type alias for make_request callable
+MakeRequestCallable = Callable[[str, str, Optional[dict[str, Any]], Optional[dict[str, Any]]], Awaitable[dict[str, Any]]]
 
 
 # ============================================================================
@@ -20,7 +24,7 @@ from fastmcp import FastMCP
 # TOOLSET 1: CANDIDATES (28 tools)
 # ============================================================================
 
-def register_candidates_tools(mcp: FastMCP, make_request):
+def register_candidates_tools(mcp: FastMCP, make_request: MakeRequestCallable) -> None:
     """Register all candidate management tools"""
 
     # ========== MAIN CANDIDATE OPERATIONS ==========
@@ -626,7 +630,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 # TOOLSET 2: JOBS (40 tools)
 # ============================================================================
 
-def register_jobs_tools(mcp: FastMCP, make_request):
+def register_jobs_tools(mcp: FastMCP, make_request: MakeRequestCallable) -> None:
     """Register all job management tools"""
 
     # ========== MAIN JOB OPERATIONS ==========
@@ -1190,7 +1194,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 # TOOLSET 3: PIPELINES (13 tools)
 # ============================================================================
 
-def register_pipelines_tools(mcp: FastMCP, make_request):
+def register_pipelines_tools(mcp: FastMCP, make_request: MakeRequestCallable) -> None:
     """Register all pipeline management tools"""
 
     @mcp.tool()
@@ -1436,7 +1440,7 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
 # TOOLSET 4: CONTEXT (3 tools)
 # ============================================================================
 
-def register_context_tools(mcp: FastMCP, make_request):
+def register_context_tools(mcp: FastMCP, make_request: MakeRequestCallable) -> None:
     """Register context and authentication tools"""
 
     @mcp.tool()
@@ -1484,7 +1488,7 @@ def register_context_tools(mcp: FastMCP, make_request):
 # TOOLSET 5: TASKS (5 tools)
 # ============================================================================
 
-def register_tasks_tools(mcp: FastMCP, make_request):
+def register_tasks_tools(mcp: FastMCP, make_request: MakeRequestCallable) -> None:
     """Register task management tools"""
 
     @mcp.tool()
