@@ -4,10 +4,10 @@ FastMCP server for CATS (Complete Applicant Tracking System) API v3 with dynamic
 
 ## Overview
 
-This MCP server provides access to **163 tools** across **17 toolsets** covering the complete CATS API v3. The toolset architecture allows agents to load only what they need, optimizing token usage and performance.
+This MCP server provides access to **228 tools** across **17 toolsets** covering the complete CATS API v3. The toolset architecture allows agents to load only what they need, optimizing token usage and performance.
 
 **Key Features:**
-- 🎯 **163 MCP tools** covering all CATS API v3 endpoints
+- 🎯 **228 MCP tools** covering all CATS API v3 endpoints (complete coverage)
 - 📦 **17 toolsets** organized by resource type
 - ⚡ **Dynamic loading** - load only what you need
 - 🔐 **Secure** - token-based authentication, no hardcoded credentials
@@ -55,16 +55,16 @@ python server.py --toolsets all   # Load all 162 tools
 
 ### Toolset Organization
 
-**DEFAULT Toolsets (77 tools)** - Loaded by default:
-- **candidates** (28 tools) - Candidate management + sub-resources
-- **jobs** (29 tools) - Job management, lists, applications
-- **pipelines** (12 tools) - Pipeline workflows and status management
+**DEFAULT Toolsets (105 tools)** - Loaded by default:
+- **candidates** (44 tools) - Complete candidate management + all sub-resources
+- **jobs** (35 tools) - Complete job management, lists, applications, statuses
+- **pipelines** (17 tools) - Pipeline workflows and status management
 - **context** (3 tools) - Site info, user info, authorization
 - **tasks** (5 tools) - Task management
 
-**RECRUITING Toolsets (64 tools)** - Optional:
-- **companies** (22 tools) - Company management + departments
-- **contacts** (25 tools) - Contact management + communications
+**RECRUITING Toolsets (106 tools)** - Optional:
+- **companies** (48 tools) - Complete company management + phones, departments, lists, statuses, thumbnails
+- **contacts** (42 tools) - Complete contact management + lists, statuses, thumbnails
 - **activities** (6 tools) - Activity tracking (calls, meetings, emails)
 - **portals** (8 tools) - Career portals and applications
 - **work_history** (3 tools) - Employment history management
@@ -84,9 +84,9 @@ Agents load only needed toolsets, dramatically reducing token usage:
 
 | Toolsets | Tools Loaded | Use Case |
 |----------|--------------|----------|
-| Default | 77 (~47%) | Core recruiting |
-| candidates,companies | 50 (~31%) | Candidate sourcing |
-| all | 163 (100%) | Full API access |
+| Default | 105 (~46%) | Core recruiting |
+| candidates,companies | 92 (~40%) | Candidate sourcing |
+| all | 228 (100%) | Complete API coverage |
 
 ## Installation
 
@@ -178,28 +178,30 @@ python server.py
 
 ### Complete Tool List
 
-**Candidates (28 tools)**
+**Candidates (44 tools)** - Complete Coverage
 - Main: list, get, create, update, delete, search, filter, authorize
-- Sub-resources: pipelines, activities, attachments, custom fields, emails, phones, tags, work history
+- Sub-resources: pipelines, activities, attachments, custom fields (with details), emails (full CRUD), phones (full CRUD), tags, work history (full CRUD), lists (full CRUD), thumbnails
 
-**Jobs (29 tools)**
+**Jobs (35 tools)** - Complete Coverage
 - Main: list, get, create, update, delete, search, filter
-- Sub-resources: activities, attachments, custom fields, tags
+- Sub-resources: activities, attachments, custom fields (with details), tags, statuses (full management)
 - Job lists: full CRUD + item management
 - Applications: list, get details, get fields
 
-**Pipelines (12 tools)**
+**Pipelines (17 tools)** - Complete Coverage
 - Main: list, get, create, update, delete, filter
-- Workflows: list workflows/statuses
+- Workflows: list workflows, get workflow, list workflow statuses, get workflow status
 - Status management: get history, change status
 
-**Companies (22 tools)**
+**Companies (48 tools)** - Complete Coverage
 - Main: list, get, create, update, delete, search, filter
-- Sub-resources: activities, attachments, contacts, custom fields, departments, pipelines, tags
+- Sub-resources: activities, attachments, contacts, custom fields (with details), pipelines, tags
+- Advanced: phones (full CRUD), departments (full CRUD), lists (full CRUD), statuses, thumbnails
 
-**Contacts (25 tools)**
+**Contacts (42 tools)** - Complete Coverage
 - Main: list, get, create, update, delete, search, filter
-- Sub-resources: activities, attachments, custom fields, emails, phones, pipelines, tags
+- Sub-resources: activities, attachments, custom fields (with details), emails (full CRUD), phones (full CRUD), pipelines, tags
+- Advanced: lists (full CRUD), statuses, thumbnails
 
 **Activities (6 tools)**
 - list, get, update, delete, search, filter
@@ -304,9 +306,24 @@ Provided as-is for CATS API v3 integration. Follow CATS API terms of service.
 
 ## Changelog
 
+### 2025-12-16 - v2.0.0
+- **Complete API coverage**: Expanded from 164 to 228 tools (+64 endpoints)
+- Added missing critical features:
+  - Lists management (candidate/job/company/contact lists - 32 endpoints)
+  - Status management (job/company/contact statuses - 9 endpoints)
+  - Thumbnails (candidate/company/contact - 6 endpoints)
+  - Custom field details (3 endpoints per resource - 9 total)
+  - Work history CRUD (3 endpoints)
+  - Company phones (5 endpoints)
+  - Company departments (5 endpoints)
+- **Bug fixes**:
+  - Fixed `filter_candidates` pagination (moved to JSON body)
+  - Fixed `filter_jobs` pagination (moved to JSON body)
+- Now covers 100% of documented CATS API v3 endpoints
+
 ### 2025-01-26 - v1.0.0
 - Initial release with toolset architecture
-- 163 tools across 17 toolsets
+- 164 tools across 17 toolsets
 - Dynamic loading via CLI/environment
-- Complete CATS API v3 coverage
+- ~82% CATS API v3 coverage
 - Production-ready

@@ -183,14 +183,16 @@ def register_candidates_tools(mcp: FastMCP, make_request):
         Returns:
             dict: List of filtered candidates
         """
-        payload = {}
+        payload = {
+            "per_page": per_page,
+            "page": page
+        }
         if status:
             payload["status"] = status
         if job_id:
             payload["job_id"] = job_id
 
-        params = {"per_page": per_page, "page": page}
-        return await make_request("POST", "/candidates/search", params=params, json_data=payload)
+        return await make_request("POST", "/candidates/search", json_data=payload)
 
 
     @mcp.tool()
@@ -336,6 +338,44 @@ def register_candidates_tools(mcp: FastMCP, make_request):
             dict: Candidate's custom field values
         """
         return await make_request("GET", f"/candidates/{candidate_id}/custom_fields")
+
+
+    @mcp.tool()
+    async def get_candidate_custom_field(candidate_id: int, field_id: int) -> dict[str, Any]:
+        """
+        Get a specific custom field for a candidate.
+        Wraps: GET /candidates/{id}/custom_fields/{field_id}
+
+        Args:
+            candidate_id: The unique identifier of the candidate
+            field_id: The unique identifier of the custom field
+
+        Returns:
+            dict: Custom field value
+        """
+        return await make_request("GET", f"/candidates/{candidate_id}/custom_fields/{field_id}")
+
+
+    @mcp.tool()
+    async def update_candidate_custom_field(
+        candidate_id: int,
+        field_id: int,
+        value: Any
+    ) -> dict[str, Any]:
+        """
+        Update a specific custom field for a candidate.
+        Wraps: PUT /candidates/{id}/custom_fields/{field_id}
+
+        Args:
+            candidate_id: The unique identifier of the candidate
+            field_id: The unique identifier of the custom field
+            value: The new value for the custom field
+
+        Returns:
+            dict: Updated custom field
+        """
+        payload = {"value": value}
+        return await make_request("PUT", f"/candidates/{candidate_id}/custom_fields/{field_id}", json_data=payload)
 
 
     @mcp.tool()
@@ -622,6 +662,243 @@ def register_candidates_tools(mcp: FastMCP, make_request):
         return await make_request("POST", f"/candidates/{candidate_id}/work_history", json_data=payload)
 
 
+    @mcp.tool()
+    async def get_candidate_work_history_item(work_history_id: int) -> dict[str, Any]:
+        """
+        Get a specific work history item.
+        Wraps: GET /work_history/{id}
+
+        Args:
+            work_history_id: The unique identifier of the work history item
+
+        Returns:
+            dict: Work history item details
+        """
+        return await make_request("GET", f"/work_history/{work_history_id}")
+
+
+    @mcp.tool()
+    async def update_candidate_work_history_item(
+        work_history_id: int,
+        company: Optional[str] = None,
+        title: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> dict[str, Any]:
+        """
+        Update a work history item.
+        Wraps: PUT /work_history/{id}
+
+        Args:
+            work_history_id: The unique identifier of the work history item
+            company: Updated company name (optional)
+            title: Updated job title (optional)
+            start_date: Updated start date (optional)
+            end_date: Updated end date (optional)
+            description: Updated description (optional)
+
+        Returns:
+            dict: Updated work history item
+        """
+        payload = {}
+        if company:
+            payload["company"] = company
+        if title:
+            payload["title"] = title
+        if start_date:
+            payload["start_date"] = start_date
+        if end_date:
+            payload["end_date"] = end_date
+        if description:
+            payload["description"] = description
+
+        return await make_request("PUT", f"/work_history/{work_history_id}", json_data=payload)
+
+
+    @mcp.tool()
+    async def delete_candidate_work_history_item(work_history_id: int) -> dict[str, Any]:
+        """
+        Delete a work history item.
+        Wraps: DELETE /work_history/{id}
+
+        Args:
+            work_history_id: The unique identifier of the work history item
+
+        Returns:
+            dict: Confirmation of deletion
+        """
+        return await make_request("DELETE", f"/work_history/{work_history_id}")
+
+
+    # ========== CANDIDATE LISTS ==========
+
+    @mcp.tool()
+    async def list_candidate_lists(per_page: int = 25, page: int = 1) -> dict[str, Any]:
+        """
+        List all candidate lists.
+        Wraps: GET /candidate_lists
+
+        Args:
+            per_page: Number of results per page (default: 25)
+            page: Page number (default: 1)
+
+        Returns:
+            dict: List of candidate lists
+        """
+        return await make_request("GET", "/candidate_lists", params={"per_page": per_page, "page": page})
+
+
+    @mcp.tool()
+    async def get_candidate_list(list_id: int) -> dict[str, Any]:
+        """
+        Get a specific candidate list.
+        Wraps: GET /candidate_lists/{id}
+
+        Args:
+            list_id: The unique identifier of the list
+
+        Returns:
+            dict: Candidate list details
+        """
+        return await make_request("GET", f"/candidate_lists/{list_id}")
+
+
+    @mcp.tool()
+    async def create_candidate_list(name: str, description: Optional[str] = None) -> dict[str, Any]:
+        """
+        Create a new candidate list.
+        Wraps: POST /candidate_lists
+
+        Args:
+            name: Name of the list
+            description: Description of the list (optional)
+
+        Returns:
+            dict: Created candidate list
+        """
+        payload = {"name": name}
+        if description:
+            payload["description"] = description
+        return await make_request("POST", "/candidate_lists", json_data=payload)
+
+
+    @mcp.tool()
+    async def delete_candidate_list(list_id: int) -> dict[str, Any]:
+        """
+        Delete a candidate list.
+        Wraps: DELETE /candidate_lists/{id}
+
+        Args:
+            list_id: The unique identifier of the list
+
+        Returns:
+            dict: Confirmation of deletion
+        """
+        return await make_request("DELETE", f"/candidate_lists/{list_id}")
+
+
+    @mcp.tool()
+    async def list_candidate_list_items(list_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
+        """
+        List all items in a candidate list.
+        Wraps: GET /candidate_lists/{id}/items
+
+        Args:
+            list_id: The unique identifier of the list
+            per_page: Number of results per page (default: 25)
+            page: Page number (default: 1)
+
+        Returns:
+            dict: List of candidate list items
+        """
+        return await make_request("GET", f"/candidate_lists/{list_id}/items",
+                                 params={"per_page": per_page, "page": page})
+
+
+    @mcp.tool()
+    async def get_candidate_list_item(list_id: int, item_id: int) -> dict[str, Any]:
+        """
+        Get a specific candidate list item.
+        Wraps: GET /candidate_lists/{list_id}/items/{item_id}
+
+        Args:
+            list_id: The unique identifier of the list
+            item_id: The unique identifier of the list item
+
+        Returns:
+            dict: Candidate list item details
+        """
+        return await make_request("GET", f"/candidate_lists/{list_id}/items/{item_id}")
+
+
+    @mcp.tool()
+    async def create_candidate_list_items(list_id: int, candidate_ids: list[int]) -> dict[str, Any]:
+        """
+        Add candidates to a list.
+        Wraps: POST /candidate_lists/{id}/items
+
+        Args:
+            list_id: The unique identifier of the list
+            candidate_ids: List of candidate IDs to add
+
+        Returns:
+            dict: Created list items
+        """
+        payload = {"candidate_ids": candidate_ids}
+        return await make_request("POST", f"/candidate_lists/{list_id}/items", json_data=payload)
+
+
+    @mcp.tool()
+    async def delete_candidate_list_item(list_id: int, item_id: int) -> dict[str, Any]:
+        """
+        Remove a candidate from a list.
+        Wraps: DELETE /candidate_lists/{list_id}/items/{item_id}
+
+        Args:
+            list_id: The unique identifier of the list
+            item_id: The unique identifier of the list item
+
+        Returns:
+            dict: Confirmation of deletion
+        """
+        return await make_request("DELETE", f"/candidate_lists/{list_id}/items/{item_id}")
+
+
+    # ========== CANDIDATE THUMBNAILS ==========
+
+    @mcp.tool()
+    async def get_candidate_thumbnail(candidate_id: int) -> dict[str, Any]:
+        """
+        Get a candidate's thumbnail image.
+        Wraps: GET /candidates/{id}/thumbnail
+
+        Args:
+            candidate_id: The unique identifier of the candidate
+
+        Returns:
+            dict: Thumbnail image data
+        """
+        return await make_request("GET", f"/candidates/{candidate_id}/thumbnail")
+
+
+    @mcp.tool()
+    async def change_candidate_thumbnail(candidate_id: int, image_data: str) -> dict[str, Any]:
+        """
+        Update a candidate's thumbnail image.
+        Wraps: PUT /candidates/{id}/thumbnail
+
+        Args:
+            candidate_id: The unique identifier of the candidate
+            image_data: Base64 encoded image data or image URL
+
+        Returns:
+            dict: Updated thumbnail information
+        """
+        payload = {"image": image_data}
+        return await make_request("PUT", f"/candidates/{candidate_id}/thumbnail", json_data=payload)
+
+
 # ============================================================================
 # TOOLSET 2: JOBS (40 tools)
 # ============================================================================
@@ -795,7 +1072,10 @@ def register_jobs_tools(mcp: FastMCP, make_request):
         Returns:
             dict: List of filtered jobs
         """
-        payload = {}
+        payload = {
+            "per_page": per_page,
+            "page": page
+        }
         if status:
             payload["status"] = status
         if department:
@@ -803,8 +1083,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
         if location:
             payload["location"] = location
 
-        params = {"per_page": per_page, "page": page}
-        return await make_request("POST", "/jobs/search", params=params, json_data=payload)
+        return await make_request("POST", "/jobs/search", json_data=payload)
 
 
     # ========== JOB SUB-RESOURCES ==========
@@ -893,6 +1172,22 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
+    async def get_job_custom_field(job_id: int, field_id: int) -> dict[str, Any]:
+        """
+        Get a specific custom field for a job.
+        Wraps: GET /jobs/{id}/custom_fields/{field_id}
+
+        Args:
+            job_id: The unique identifier of the job
+            field_id: The unique identifier of the custom field
+
+        Returns:
+            dict: Custom field value
+        """
+        return await make_request("GET", f"/jobs/{job_id}/custom_fields/{field_id}")
+
+
+    @mcp.tool()
     async def update_job_custom_fields(job_id: int, fields: dict[str, Any]) -> dict[str, Any]:
         """
         Update custom fields for a job.
@@ -906,6 +1201,73 @@ def register_jobs_tools(mcp: FastMCP, make_request):
             dict: Updated custom fields
         """
         return await make_request("PUT", f"/jobs/{job_id}/custom_fields", json_data=fields)
+
+
+    @mcp.tool()
+    async def update_job_custom_field(job_id: int, field_id: int, value: Any) -> dict[str, Any]:
+        """
+        Update a specific custom field for a job.
+        Wraps: PUT /jobs/{id}/custom_fields/{field_id}
+
+        Args:
+            job_id: The unique identifier of the job
+            field_id: The unique identifier of the custom field
+            value: The new value for the custom field
+
+        Returns:
+            dict: Updated custom field
+        """
+        payload = {"value": value}
+        return await make_request("PUT", f"/jobs/{job_id}/custom_fields/{field_id}", json_data=payload)
+
+
+    # ========== JOB STATUSES ==========
+
+    @mcp.tool()
+    async def list_job_statuses() -> dict[str, Any]:
+        """
+        List all available job statuses.
+        Wraps: GET /job_statuses
+
+        Returns:
+            dict: List of job statuses
+        """
+        return await make_request("GET", "/job_statuses")
+
+
+    @mcp.tool()
+    async def get_job_status(job_id: int) -> dict[str, Any]:
+        """
+        Get the current status of a job.
+        Wraps: GET /jobs/{id}/status
+
+        Args:
+            job_id: The unique identifier of the job
+
+        Returns:
+            dict: Current job status
+        """
+        return await make_request("GET", f"/jobs/{job_id}/status")
+
+
+    @mcp.tool()
+    async def change_job_status(job_id: int, status_id: int, reason: Optional[str] = None) -> dict[str, Any]:
+        """
+        Change the status of a job.
+        Wraps: PUT /jobs/{id}/status
+
+        Args:
+            job_id: The unique identifier of the job
+            status_id: The new status ID
+            reason: Optional reason for the status change
+
+        Returns:
+            dict: Updated job with new status
+        """
+        payload = {"status_id": status_id}
+        if reason:
+            payload["reason"] = reason
+        return await make_request("PUT", f"/jobs/{job_id}/status", json_data=payload)
 
 
     @mcp.tool()
