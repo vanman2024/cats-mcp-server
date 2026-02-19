@@ -42,7 +42,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return summarize_list_response(raw, "companies", fields)
 
     @mcp.tool()
-    async def get_company(company_id: int) -> dict[str, Any]:
+    async def get_company(company_id: int | str) -> dict[str, Any]:
         """
         Get detailed information about a specific company.
 
@@ -104,7 +104,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_company(
-        company_id: int,
+        company_id: int | str,
         name: Optional[str] = None,
         website: Optional[str] = None,
         phone: Optional[str] = None,
@@ -153,7 +153,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("PUT", f"/companies/{company_id}", json_data=payload)
 
     @mcp.tool()
-    async def delete_company(company_id: int) -> dict[str, Any]:
+    async def delete_company(company_id: int | str) -> dict[str, Any]:
         """
         Delete a company record (permanent).
 
@@ -221,7 +221,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
 
     # Company Sub-Resources
     @mcp.tool()
-    async def list_company_activities(company_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_company_activities(company_id: int | str, per_page: int = 25, page: int = 1) -> dict[str, Any]:
         """
         List all activities for a specific company.
 
@@ -240,7 +240,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def create_company_activity(
-        company_id: int,
+        company_id: int | str,
         activity_type: str,
         description: str,
         notes: Optional[str] = None
@@ -265,7 +265,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("POST", f"/companies/{company_id}/activities", json_data=payload)
 
     @mcp.tool()
-    async def list_company_attachments(company_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_company_attachments(company_id: int | str, per_page: int = 25, page: int = 1) -> dict[str, Any]:
         """
         List all attachments for a company.
 
@@ -284,7 +284,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def upload_company_attachment(
-        company_id: int,
+        company_id: int | str,
         file_data: dict[str, Any]
     ) -> dict[str, Any]:
         """
@@ -305,7 +305,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("POST", f"/companies/{company_id}/attachments", json_data=file_data)
 
     @mcp.tool()
-    async def list_company_contacts(company_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_company_contacts(company_id: int | str, per_page: int = 25, page: int = 1) -> dict[str, Any]:
         """
         List all contacts associated with a company.
 
@@ -323,7 +323,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
                                  params={"per_page": per_page, "page": page})
 
     @mcp.tool()
-    async def get_company_custom_fields(company_id: int) -> dict[str, Any]:
+    async def get_company_custom_fields(company_id: int | str) -> dict[str, Any]:
         """
         Get custom fields for a company.
 
@@ -338,7 +338,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/companies/{company_id}/custom_fields")
 
     @mcp.tool()
-    async def list_company_departments(company_id: int) -> dict[str, Any]:
+    async def list_company_departments(company_id: int | str) -> dict[str, Any]:
         """
         List all departments within a company.
 
@@ -353,7 +353,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/companies/{company_id}/departments")
 
     @mcp.tool()
-    async def create_company_department(company_id: int, name: str, description: Optional[str] = None) -> dict[str, Any]:
+    async def create_company_department(company_id: int | str, name: str, description: Optional[str] = None) -> dict[str, Any]:
         """
         Create a new department for a company.
 
@@ -374,8 +374,8 @@ def register_companies_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_company_department(
-        company_id: int,
-        department_id: int,
+        company_id: int | str,
+        department_id: int | str,
         name: Optional[str] = None,
         description: Optional[str] = None
     ) -> dict[str, Any]:
@@ -401,7 +401,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("PUT", f"/companies/{company_id}/departments/{department_id}", json_data=payload)
 
     @mcp.tool()
-    async def delete_company_department(company_id: int, department_id: int) -> dict[str, Any]:
+    async def delete_company_department(company_id: int | str, department_id: int | str) -> dict[str, Any]:
         """
         Delete a company department.
 
@@ -417,7 +417,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("DELETE", f"/companies/{company_id}/departments/{department_id}")
 
     @mcp.tool()
-    async def list_company_pipelines(company_id: int) -> dict[str, Any]:
+    async def list_company_pipelines(company_id: int | str) -> dict[str, Any]:
         """
         List all pipelines associated with a company.
 
@@ -432,7 +432,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/companies/{company_id}/pipelines")
 
     @mcp.tool()
-    async def list_company_tags(company_id: int) -> dict[str, Any]:
+    async def list_company_tags(company_id: int | str) -> dict[str, Any]:
         """
         List all tags applied to a company.
 
@@ -447,7 +447,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/companies/{company_id}/tags")
 
     @mcp.tool()
-    async def replace_company_tags(company_id: int, tag_ids: list[int]) -> dict[str, Any]:
+    async def replace_company_tags(company_id: int | str, tag_ids: list[int]) -> dict[str, Any]:
         """
         Replace all tags on a company (replaces existing tags).
 
@@ -463,7 +463,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("POST", f"/companies/{company_id}/tags", json_data={"tag_ids": tag_ids})
 
     @mcp.tool()
-    async def attach_company_tags(company_id: int, tag_ids: list[int]) -> dict[str, Any]:
+    async def attach_company_tags(company_id: int | str, tag_ids: list[int]) -> dict[str, Any]:
         """
         Attach additional tags to a company (additive).
 
@@ -479,7 +479,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("PUT", f"/companies/{company_id}/tags", json_data={"tag_ids": tag_ids})
 
     @mcp.tool()
-    async def delete_company_tag(company_id: int, tag_id: int) -> dict[str, Any]:
+    async def delete_company_tag(company_id: int | str, tag_id: int | str) -> dict[str, Any]:
         """
         Remove a specific tag from a company.
 
@@ -496,7 +496,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
 
     # Company Phones
     @mcp.tool()
-    async def list_company_phones(company_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_company_phones(company_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all phone numbers for a company.
 
@@ -512,7 +512,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/companies/{company_id}/phones", params={"per_page": per_page})
 
     @mcp.tool()
-    async def get_company_phone(company_id: int, phone_id: int) -> dict[str, Any]:
+    async def get_company_phone(company_id: int | str, phone_id: int | str) -> dict[str, Any]:
         """
         Get a specific company phone.
 
@@ -528,7 +528,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/companies/{company_id}/phones/{phone_id}")
 
     @mcp.tool()
-    async def create_company_phone(company_id: int, phone: str, phone_type: str = "work") -> dict[str, Any]:
+    async def create_company_phone(company_id: int | str, phone: str, phone_type: str = "work") -> dict[str, Any]:
         """
         Add a phone number for a company.
 
@@ -546,7 +546,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
                                  json_data={"phone": phone, "type": phone_type})
 
     @mcp.tool()
-    async def update_company_phone(company_id: int, phone_id: int, phone: Optional[str] = None, phone_type: Optional[str] = None) -> dict[str, Any]:
+    async def update_company_phone(company_id: int | str, phone_id: int | str, phone: Optional[str] = None, phone_type: Optional[str] = None) -> dict[str, Any]:
         """
         Update a company phone number.
 
@@ -569,7 +569,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("PUT", f"/companies/{company_id}/phones/{phone_id}", json_data=payload)
 
     @mcp.tool()
-    async def delete_company_phone(company_id: int, phone_id: int) -> dict[str, Any]:
+    async def delete_company_phone(company_id: int | str, phone_id: int | str) -> dict[str, Any]:
         """
         Delete a company phone number.
 
@@ -586,7 +586,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
 
     # Company Custom Fields Detail
     @mcp.tool()
-    async def get_company_custom_field(company_id: int, field_id: int) -> dict[str, Any]:
+    async def get_company_custom_field(company_id: int | str, field_id: int | str) -> dict[str, Any]:
         """
         Get a specific custom field for a company.
 
@@ -603,7 +603,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
 
     # Company Thumbnails
     @mcp.tool()
-    async def get_company_thumbnail(company_id: int) -> dict[str, Any]:
+    async def get_company_thumbnail(company_id: int | str) -> dict[str, Any]:
         """
         Get a company's thumbnail image.
 
@@ -618,7 +618,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/companies/{company_id}/thumbnail")
 
     @mcp.tool()
-    async def change_company_thumbnail(company_id: int, image_data: str) -> dict[str, Any]:
+    async def change_company_thumbnail(company_id: int | str, image_data: str) -> dict[str, Any]:
         """
         Update a company's thumbnail image.
 
@@ -669,7 +669,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return summarize_list_response(raw, "contacts", fields)
 
     @mcp.tool()
-    async def get_contact(contact_id: int) -> dict[str, Any]:
+    async def get_contact(contact_id: int | str) -> dict[str, Any]:
         """
         Get detailed information about a specific contact.
 
@@ -727,7 +727,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_contact(
-        contact_id: int,
+        contact_id: int | str,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         email: Optional[str] = None,
@@ -772,7 +772,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("PUT", f"/contacts/{contact_id}", json_data=payload)
 
     @mcp.tool()
-    async def delete_contact(contact_id: int) -> dict[str, Any]:
+    async def delete_contact(contact_id: int | str) -> dict[str, Any]:
         """
         Delete a contact record (permanent).
 
@@ -840,7 +840,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
 
     # Contact Sub-Resources
     @mcp.tool()
-    async def list_contact_activities(contact_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_contact_activities(contact_id: int | str, per_page: int = 25, page: int = 1) -> dict[str, Any]:
         """
         List all activities for a specific contact.
 
@@ -859,7 +859,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def create_contact_activity(
-        contact_id: int,
+        contact_id: int | str,
         activity_type: str,
         description: str,
         notes: Optional[str] = None
@@ -884,7 +884,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("POST", f"/contacts/{contact_id}/activities", json_data=payload)
 
     @mcp.tool()
-    async def list_contact_attachments(contact_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_contact_attachments(contact_id: int | str, per_page: int = 25, page: int = 1) -> dict[str, Any]:
         """
         List all attachments for a contact.
 
@@ -903,7 +903,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def upload_contact_attachment(
-        contact_id: int,
+        contact_id: int | str,
         file_data: dict[str, Any]
     ) -> dict[str, Any]:
         """
@@ -924,7 +924,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("POST", f"/contacts/{contact_id}/attachments", json_data=file_data)
 
     @mcp.tool()
-    async def get_contact_custom_fields(contact_id: int) -> dict[str, Any]:
+    async def get_contact_custom_fields(contact_id: int | str) -> dict[str, Any]:
         """
         Get custom fields for a contact.
 
@@ -939,7 +939,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/contacts/{contact_id}/custom_fields")
 
     @mcp.tool()
-    async def list_contact_emails(contact_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_contact_emails(contact_id: int | str, per_page: int = 25, page: int = 1) -> dict[str, Any]:
         """
         List all email addresses for a contact.
 
@@ -957,7 +957,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
                                  params={"per_page": per_page, "page": page})
 
     @mcp.tool()
-    async def create_contact_email(contact_id: int, email: str, email_type: str = "work") -> dict[str, Any]:
+    async def create_contact_email(contact_id: int | str, email: str, email_type: str = "work") -> dict[str, Any]:
         """
         Add an email address to a contact.
 
@@ -975,7 +975,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
                                 json_data={"email": email, "type": email_type})
 
     @mcp.tool()
-    async def update_contact_email(contact_id: int, email_id: int, email: str, email_type: str) -> dict[str, Any]:
+    async def update_contact_email(contact_id: int | str, email_id: int | str, email: str, email_type: str) -> dict[str, Any]:
         """
         Update a contact's email address.
 
@@ -994,7 +994,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
                                 json_data={"email": email, "type": email_type})
 
     @mcp.tool()
-    async def delete_contact_email(contact_id: int, email_id: int) -> dict[str, Any]:
+    async def delete_contact_email(contact_id: int | str, email_id: int | str) -> dict[str, Any]:
         """
         Delete a contact's email address.
 
@@ -1010,7 +1010,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("DELETE", f"/contacts/{contact_id}/emails/{email_id}")
 
     @mcp.tool()
-    async def list_contact_phones(contact_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_contact_phones(contact_id: int | str, per_page: int = 25, page: int = 1) -> dict[str, Any]:
         """
         List all phone numbers for a contact.
 
@@ -1028,7 +1028,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
                                  params={"per_page": per_page, "page": page})
 
     @mcp.tool()
-    async def create_contact_phone(contact_id: int, phone: str, phone_type: str = "work") -> dict[str, Any]:
+    async def create_contact_phone(contact_id: int | str, phone: str, phone_type: str = "work") -> dict[str, Any]:
         """
         Add a phone number to a contact.
 
@@ -1046,7 +1046,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
                                 json_data={"phone": phone, "type": phone_type})
 
     @mcp.tool()
-    async def update_contact_phone(contact_id: int, phone_id: int, phone: str, phone_type: str) -> dict[str, Any]:
+    async def update_contact_phone(contact_id: int | str, phone_id: int | str, phone: str, phone_type: str) -> dict[str, Any]:
         """
         Update a contact's phone number.
 
@@ -1065,7 +1065,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
                                 json_data={"phone": phone, "type": phone_type})
 
     @mcp.tool()
-    async def delete_contact_phone(contact_id: int, phone_id: int) -> dict[str, Any]:
+    async def delete_contact_phone(contact_id: int | str, phone_id: int | str) -> dict[str, Any]:
         """
         Delete a contact's phone number.
 
@@ -1081,7 +1081,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("DELETE", f"/contacts/{contact_id}/phones/{phone_id}")
 
     @mcp.tool()
-    async def list_contact_pipelines(contact_id: int) -> dict[str, Any]:
+    async def list_contact_pipelines(contact_id: int | str) -> dict[str, Any]:
         """
         List all pipelines associated with a contact.
 
@@ -1096,7 +1096,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/contacts/{contact_id}/pipelines")
 
     @mcp.tool()
-    async def list_contact_tags(contact_id: int) -> dict[str, Any]:
+    async def list_contact_tags(contact_id: int | str) -> dict[str, Any]:
         """
         List all tags applied to a contact.
 
@@ -1111,7 +1111,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/contacts/{contact_id}/tags")
 
     @mcp.tool()
-    async def replace_contact_tags(contact_id: int, tag_ids: list[int]) -> dict[str, Any]:
+    async def replace_contact_tags(contact_id: int | str, tag_ids: list[int]) -> dict[str, Any]:
         """
         Replace all tags on a contact (replaces existing tags).
 
@@ -1127,7 +1127,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("POST", f"/contacts/{contact_id}/tags", json_data={"tag_ids": tag_ids})
 
     @mcp.tool()
-    async def attach_contact_tags(contact_id: int, tag_ids: list[int]) -> dict[str, Any]:
+    async def attach_contact_tags(contact_id: int | str, tag_ids: list[int]) -> dict[str, Any]:
         """
         Attach additional tags to a contact (additive).
 
@@ -1143,7 +1143,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("PUT", f"/contacts/{contact_id}/tags", json_data={"tag_ids": tag_ids})
 
     @mcp.tool()
-    async def delete_contact_tag(contact_id: int, tag_id: int) -> dict[str, Any]:
+    async def delete_contact_tag(contact_id: int | str, tag_id: int | str) -> dict[str, Any]:
         """
         Remove a specific tag from a contact.
 
@@ -1160,7 +1160,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
 
     # Contact Custom Fields Detail
     @mcp.tool()
-    async def get_contact_custom_field(contact_id: int, field_id: int) -> dict[str, Any]:
+    async def get_contact_custom_field(contact_id: int | str, field_id: int | str) -> dict[str, Any]:
         """
         Get a specific custom field for a contact.
 
@@ -1177,7 +1177,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
 
     # Contact Thumbnails
     @mcp.tool()
-    async def get_contact_thumbnail(contact_id: int) -> dict[str, Any]:
+    async def get_contact_thumbnail(contact_id: int | str) -> dict[str, Any]:
         """
         Get a contact's thumbnail image.
 
@@ -1192,7 +1192,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/contacts/{contact_id}/thumbnail")
 
     @mcp.tool()
-    async def change_contact_thumbnail(contact_id: int, image_data: str) -> dict[str, Any]:
+    async def change_contact_thumbnail(contact_id: int | str, image_data: str) -> dict[str, Any]:
         """
         Update a contact's thumbnail image.
 
@@ -1235,7 +1235,7 @@ def register_activities_tools(mcp: FastMCP, make_request):
         return await make_request("GET", "/activities", params={"per_page": per_page, "page": page})
 
     @mcp.tool()
-    async def get_activity(activity_id: int) -> dict[str, Any]:
+    async def get_activity(activity_id: int | str) -> dict[str, Any]:
         """
         Get detailed information about a specific activity.
 
@@ -1251,7 +1251,7 @@ def register_activities_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_activity(
-        activity_id: int,
+        activity_id: int | str,
         activity_type: Optional[str] = None,
         description: Optional[str] = None,
         notes: Optional[str] = None,
@@ -1284,7 +1284,7 @@ def register_activities_tools(mcp: FastMCP, make_request):
         return await make_request("PUT", f"/activities/{activity_id}", json_data=payload)
 
     @mcp.tool()
-    async def delete_activity(activity_id: int) -> dict[str, Any]:
+    async def delete_activity(activity_id: int | str) -> dict[str, Any]:
         """
         Delete an activity record (permanent).
 
@@ -1361,7 +1361,7 @@ def register_portals_tools(mcp: FastMCP, make_request):
         return await make_request("GET", "/portals", params={"per_page": per_page, "page": page})
 
     @mcp.tool()
-    async def get_portal(portal_id: int) -> dict[str, Any]:
+    async def get_portal(portal_id: int | str) -> dict[str, Any]:
         """
         Get detailed information about a specific portal.
 
@@ -1376,7 +1376,7 @@ def register_portals_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/portals/{portal_id}")
 
     @mcp.tool()
-    async def list_portal_jobs(portal_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_portal_jobs(portal_id: int | str, per_page: int = 25, page: int = 1) -> dict[str, Any]:
         """
         List all jobs published to a specific portal.
 
@@ -1395,8 +1395,8 @@ def register_portals_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def submit_job_application(
-        portal_id: int,
-        job_id: int,
+        portal_id: int | str,
+        job_id: int | str,
         candidate_data: dict[str, Any]
     ) -> dict[str, Any]:
         """
@@ -1416,7 +1416,7 @@ def register_portals_tools(mcp: FastMCP, make_request):
                                  json_data=candidate_data)
 
     @mcp.tool()
-    async def publish_job_to_portal(portal_id: int, job_id: int) -> dict[str, Any]:
+    async def publish_job_to_portal(portal_id: int | str, job_id: int | str) -> dict[str, Any]:
         """
         Publish a job posting to a portal.
 
@@ -1432,7 +1432,7 @@ def register_portals_tools(mcp: FastMCP, make_request):
         return await make_request("PUT", f"/portals/{portal_id}/jobs/{job_id}")
 
     @mcp.tool()
-    async def unpublish_job_from_portal(portal_id: int, job_id: int) -> dict[str, Any]:
+    async def unpublish_job_from_portal(portal_id: int | str, job_id: int | str) -> dict[str, Any]:
         """
         Remove a job posting from a portal.
 
@@ -1448,7 +1448,7 @@ def register_portals_tools(mcp: FastMCP, make_request):
         return await make_request("DELETE", f"/portals/{portal_id}/jobs/{job_id}")
 
     @mcp.tool()
-    async def get_portal_registration(portal_id: int) -> dict[str, Any]:
+    async def get_portal_registration(portal_id: int | str) -> dict[str, Any]:
         """
         Get portal registration information and requirements.
 
@@ -1464,7 +1464,7 @@ def register_portals_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def submit_portal_registration(
-        portal_id: int,
+        portal_id: int | str,
         registration_data: dict[str, Any]
     ) -> dict[str, Any]:
         """
@@ -1491,7 +1491,7 @@ def register_work_history_tools(mcp: FastMCP, make_request):
     """Register all work history-related tools"""
 
     @mcp.tool()
-    async def get_work_history(work_history_id: int) -> dict[str, Any]:
+    async def get_work_history(work_history_id: int | str) -> dict[str, Any]:
         """
         Get detailed information about a specific work history entry.
 
@@ -1511,7 +1511,7 @@ def register_work_history_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_work_history(
-        work_history_id: int,
+        work_history_id: int | str,
         company_name: Optional[str] = None,
         title: Optional[str] = None,
         start_date: Optional[str] = None,
@@ -1552,7 +1552,7 @@ def register_work_history_tools(mcp: FastMCP, make_request):
         return await make_request("PUT", f"/work_history/{work_history_id}", json_data=payload)
 
     @mcp.tool()
-    async def delete_work_history(work_history_id: int) -> dict[str, Any]:
+    async def delete_work_history(work_history_id: int | str) -> dict[str, Any]:
         """
         Delete a work history entry (permanent).
 

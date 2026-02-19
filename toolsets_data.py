@@ -61,7 +61,7 @@ def register_tags_tools(mcp: FastMCP, make_request: Callable = None) -> None:
         return await make_request("GET", "/tags", params={"per_page": per_page, "page": page})
 
     @mcp.tool()
-    async def get_tag(tag_id: int) -> dict[str, Any]:
+    async def get_tag(tag_id: int | str) -> dict[str, Any]:
         """
         Get details of a specific tag.
 
@@ -134,7 +134,7 @@ def register_webhooks_tools(mcp: FastMCP, make_request: Callable = None) -> None
         return await make_request("GET", "/webhooks", params={"per_page": per_page, "page": page})
 
     @mcp.tool()
-    async def get_webhook(webhook_id: int) -> dict[str, Any]:
+    async def get_webhook(webhook_id: int | str) -> dict[str, Any]:
         """
         Get details of a specific webhook configuration.
 
@@ -218,7 +218,7 @@ def register_webhooks_tools(mcp: FastMCP, make_request: Callable = None) -> None
         return await make_request("POST", "/webhooks", json_data=payload)
 
     @mcp.tool()
-    async def delete_webhook(webhook_id: int) -> dict[str, Any]:
+    async def delete_webhook(webhook_id: int | str) -> dict[str, Any]:
         """
         Delete a webhook subscription.
 
@@ -287,7 +287,7 @@ def register_users_tools(mcp: FastMCP, make_request: Callable = None) -> None:
         return await make_request("GET", "/users", params={"per_page": per_page, "page": page})
 
     @mcp.tool()
-    async def get_user(user_id: int) -> dict[str, Any]:
+    async def get_user(user_id: int | str) -> dict[str, Any]:
         """
         Get details of a specific user.
 
@@ -373,7 +373,7 @@ def register_triggers_tools(mcp: FastMCP, make_request: Callable = None) -> None
         return await make_request("GET", "/triggers", params={"per_page": per_page, "page": page})
 
     @mcp.tool()
-    async def get_trigger(trigger_id: int) -> dict[str, Any]:
+    async def get_trigger(trigger_id: int | str) -> dict[str, Any]:
         """
         Get details of a specific trigger configuration.
 
@@ -414,7 +414,7 @@ def register_attachments_tools(mcp: FastMCP, make_request: Callable = None) -> N
     """
 
     @mcp.tool()
-    async def get_attachment(attachment_id: int) -> dict[str, Any]:
+    async def get_attachment(attachment_id: int | str) -> dict[str, Any]:
         """
         Get metadata for a specific attachment.
 
@@ -446,7 +446,7 @@ def register_attachments_tools(mcp: FastMCP, make_request: Callable = None) -> N
         return await make_request("GET", f"/attachments/{attachment_id}")
 
     @mcp.tool()
-    async def delete_attachment(attachment_id: int) -> dict[str, Any]:
+    async def delete_attachment(attachment_id: int | str) -> dict[str, Any]:
         """
         Delete an attachment.
 
@@ -471,7 +471,7 @@ def register_attachments_tools(mcp: FastMCP, make_request: Callable = None) -> N
         return await make_request("DELETE", f"/attachments/{attachment_id}")
 
     @mcp.tool()
-    async def download_attachment(attachment_id: int) -> dict[str, Any]:
+    async def download_attachment(attachment_id: int | str) -> dict[str, Any]:
         """
         Download an attachment file.
 
@@ -619,7 +619,7 @@ def register_backups_tools(mcp: FastMCP, make_request: Callable = None) -> None:
         return await make_request("GET", "/backups", params=params)
 
     @mcp.tool()
-    async def get_backup(backup_id: int) -> dict[str, Any]:
+    async def get_backup(backup_id: int | str) -> dict[str, Any]:
         """
         Get details of a specific backup.
 

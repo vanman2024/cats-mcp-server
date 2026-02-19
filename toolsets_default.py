@@ -53,7 +53,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_candidate(candidate_id: int) -> dict[str, Any]:
+    async def get_candidate(candidate_id: int | str) -> dict[str, Any]:
         """
         Get detailed information about a specific candidate.
         Wraps: GET /candidates/{id}
@@ -108,7 +108,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_candidate(
-        candidate_id: int,
+        candidate_id: int | str,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         email: Optional[str] = None,
@@ -142,7 +142,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_candidate(candidate_id: int) -> dict[str, Any]:
+    async def delete_candidate(candidate_id: int | str) -> dict[str, Any]:
         """
         Permanently delete a candidate from the system.
         Wraps: DELETE /candidates/{id}
@@ -218,7 +218,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def authorize_candidate(candidate_id: int, action: str) -> dict[str, Any]:
+    async def authorize_candidate(candidate_id: int | str, action: str) -> dict[str, Any]:
         """
         Authorize a candidate action (e.g., portal access).
         Wraps: POST /candidates/authorization
@@ -237,7 +237,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
     # ========== CANDIDATE SUB-RESOURCES ==========
 
     @mcp.tool()
-    async def list_candidate_pipelines(candidate_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_candidate_pipelines(candidate_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all pipelines associated with a candidate.
         Wraps: GET /candidates/{id}/pipelines
@@ -254,7 +254,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_candidate_activities(candidate_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_candidate_activities(candidate_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all activities for a candidate.
         Wraps: GET /candidates/{id}/activities
@@ -272,7 +272,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def create_candidate_activity(
-        candidate_id: int,
+        candidate_id: int | str,
         activity_type: str,
         description: str,
         date: Optional[str] = None
@@ -301,7 +301,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_candidate_attachments(candidate_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_candidate_attachments(candidate_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all attachments for a candidate (resume, cover letter, etc).
         Wraps: GET /candidates/{id}/attachments
@@ -319,7 +319,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def upload_candidate_attachment(
-        candidate_id: int,
+        candidate_id: int | str,
         file_name: str,
         file_type: str,
         file_url: str
@@ -346,7 +346,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_candidate_custom_fields(candidate_id: int) -> dict[str, Any]:
+    async def list_candidate_custom_fields(candidate_id: int | str) -> dict[str, Any]:
         """
         Get all custom fields for a candidate.
         Wraps: GET /candidates/{id}/custom_fields
@@ -361,7 +361,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_candidate_custom_field(candidate_id: int, field_id: int) -> dict[str, Any]:
+    async def get_candidate_custom_field(candidate_id: int | str, field_id: int | str) -> dict[str, Any]:
         """
         Get a specific custom field for a candidate.
         Wraps: GET /candidates/{id}/custom_fields/{field_id}
@@ -378,8 +378,8 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_candidate_custom_field(
-        candidate_id: int,
-        field_id: int,
+        candidate_id: int | str,
+        field_id: int | str,
         value: Any
     ) -> dict[str, Any]:
         """
@@ -399,7 +399,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_candidate_emails(candidate_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_candidate_emails(candidate_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all email addresses for a candidate.
         Wraps: GET /candidates/{id}/emails
@@ -417,7 +417,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def create_candidate_email(
-        candidate_id: int,
+        candidate_id: int | str,
         email: str,
         email_type: str = "personal"
     ) -> dict[str, Any]:
@@ -439,8 +439,8 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_candidate_email(
-        candidate_id: int,
-        email_id: int,
+        candidate_id: int | str,
+        email_id: int | str,
         email: str,
         email_type: Optional[str] = None
     ) -> dict[str, Any]:
@@ -465,7 +465,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_candidate_email(candidate_id: int, email_id: int) -> dict[str, Any]:
+    async def delete_candidate_email(candidate_id: int | str, email_id: int | str) -> dict[str, Any]:
         """
         Delete a candidate's email address.
         Wraps: DELETE /candidates/{id}/emails/{email_id}
@@ -481,7 +481,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_candidate_phones(candidate_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_candidate_phones(candidate_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all phone numbers for a candidate.
         Wraps: GET /candidates/{id}/phones
@@ -499,7 +499,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def create_candidate_phone(
-        candidate_id: int,
+        candidate_id: int | str,
         phone: str,
         phone_type: str = "mobile"
     ) -> dict[str, Any]:
@@ -524,8 +524,8 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_candidate_phone(
-        candidate_id: int,
-        phone_id: int,
+        candidate_id: int | str,
+        phone_id: int | str,
         phone: str,
         phone_type: Optional[str] = None
     ) -> dict[str, Any]:
@@ -550,7 +550,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_candidate_phone(candidate_id: int, phone_id: int) -> dict[str, Any]:
+    async def delete_candidate_phone(candidate_id: int | str, phone_id: int | str) -> dict[str, Any]:
         """
         Delete a candidate's phone number.
         Wraps: DELETE /candidates/{id}/phones/{phone_id}
@@ -566,7 +566,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_candidate_tags(candidate_id: int) -> dict[str, Any]:
+    async def list_candidate_tags(candidate_id: int | str) -> dict[str, Any]:
         """
         List all tags assigned to a candidate.
         Wraps: GET /candidates/{id}/tags
@@ -581,7 +581,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def replace_candidate_tags(candidate_id: int, tag_ids: list[int]) -> dict[str, Any]:
+    async def replace_candidate_tags(candidate_id: int | str, tag_ids: list[int]) -> dict[str, Any]:
         """
         Replace all tags for a candidate (removes existing, adds new).
         Wraps: POST /candidates/{id}/tags
@@ -598,7 +598,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def attach_candidate_tags(candidate_id: int, tag_ids: list[int]) -> dict[str, Any]:
+    async def attach_candidate_tags(candidate_id: int | str, tag_ids: list[int]) -> dict[str, Any]:
         """
         Add tags to a candidate (keeps existing tags).
         Wraps: PUT /candidates/{id}/tags
@@ -615,7 +615,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_candidate_tag(candidate_id: int, tag_id: int) -> dict[str, Any]:
+    async def delete_candidate_tag(candidate_id: int | str, tag_id: int | str) -> dict[str, Any]:
         """
         Remove a specific tag from a candidate.
         Wraps: DELETE /candidates/{id}/tags/{tag_id}
@@ -631,7 +631,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_candidate_work_history(candidate_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_candidate_work_history(candidate_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all work history entries for a candidate.
         Wraps: GET /candidates/{id}/work_history
@@ -649,7 +649,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def create_candidate_work_history(
-        candidate_id: int,
+        candidate_id: int | str,
         company: str,
         title: str,
         start_date: str,
@@ -685,7 +685,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_candidate_work_history_item(candidate_id: int, work_history_id: int) -> dict[str, Any]:
+    async def get_candidate_work_history_item(candidate_id: int | str, work_history_id: int | str) -> dict[str, Any]:
         """
         Get a specific work history item for a candidate.
         Wraps: GET /candidates/{id}/work_history/{work_history_id}
@@ -702,8 +702,8 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_candidate_work_history_item(
-        candidate_id: int,
-        work_history_id: int,
+        candidate_id: int | str,
+        work_history_id: int | str,
         company: Optional[str] = None,
         title: Optional[str] = None,
         start_date: Optional[str] = None,
@@ -742,7 +742,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_candidate_work_history_item(candidate_id: int, work_history_id: int) -> dict[str, Any]:
+    async def delete_candidate_work_history_item(candidate_id: int | str, work_history_id: int | str) -> dict[str, Any]:
         """
         Delete a work history item for a candidate.
         Wraps: DELETE /candidates/{id}/work_history/{work_history_id}
@@ -776,7 +776,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_candidate_list(list_id: int) -> dict[str, Any]:
+    async def get_candidate_list(list_id: int | str) -> dict[str, Any]:
         """
         Get a specific candidate list.
         Wraps: GET /candidates/lists/{id}
@@ -810,7 +810,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_candidate_list(list_id: int) -> dict[str, Any]:
+    async def delete_candidate_list(list_id: int | str) -> dict[str, Any]:
         """
         Delete a candidate list.
         Wraps: DELETE /candidates/lists/{id}
@@ -825,7 +825,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_candidate_list_items(list_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_candidate_list_items(list_id: int | str, per_page: int = 25, page: int = 1) -> dict[str, Any]:
         """
         List all items in a candidate list.
         Wraps: GET /candidates/lists/{id}/items
@@ -843,7 +843,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_candidate_list_item(list_id: int, item_id: int) -> dict[str, Any]:
+    async def get_candidate_list_item(list_id: int | str, item_id: int | str) -> dict[str, Any]:
         """
         Get a specific candidate list item.
         Wraps: GET /candidates/lists/{list_id}/items/{item_id}
@@ -859,7 +859,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def create_candidate_list_items(list_id: int, candidate_ids: list[int]) -> dict[str, Any]:
+    async def create_candidate_list_items(list_id: int | str, candidate_ids: list[int]) -> dict[str, Any]:
         """
         Add candidates to a list.
         Wraps: POST /candidates/lists/{id}/items
@@ -876,7 +876,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_candidate_list_item(list_id: int, item_id: int) -> dict[str, Any]:
+    async def delete_candidate_list_item(list_id: int | str, item_id: int | str) -> dict[str, Any]:
         """
         Remove a candidate from a list.
         Wraps: DELETE /candidates/lists/{list_id}/items/{item_id}
@@ -894,7 +894,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
     # ========== CANDIDATE THUMBNAILS ==========
 
     @mcp.tool()
-    async def get_candidate_thumbnail(candidate_id: int) -> dict[str, Any]:
+    async def get_candidate_thumbnail(candidate_id: int | str) -> dict[str, Any]:
         """
         Get a candidate's thumbnail image.
         Wraps: GET /candidates/{id}/thumbnail
@@ -909,7 +909,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def change_candidate_thumbnail(candidate_id: int, image_data: str) -> dict[str, Any]:
+    async def change_candidate_thumbnail(candidate_id: int | str, image_data: str) -> dict[str, Any]:
         """
         Update a candidate's thumbnail image.
         Wraps: PUT /candidates/{id}/thumbnail
@@ -960,7 +960,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_job(job_id: int) -> dict[str, Any]:
+    async def get_job(job_id: int | str) -> dict[str, Any]:
         """
         Get detailed information about a specific job.
         Wraps: GET /jobs/{id}
@@ -1019,7 +1019,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_job(
-        job_id: int,
+        job_id: int | str,
         title: Optional[str] = None,
         description: Optional[str] = None,
         status: Optional[str] = None,
@@ -1053,7 +1053,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_job(job_id: int) -> dict[str, Any]:
+    async def delete_job(job_id: int | str) -> dict[str, Any]:
         """
         Permanently delete a job posting.
         Wraps: DELETE /jobs/{id}
@@ -1135,7 +1135,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
     # ========== JOB SUB-RESOURCES ==========
 
     @mcp.tool()
-    async def list_job_pipelines(job_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_job_pipelines(job_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all pipelines for a job.
         Wraps: GET /jobs/{id}/pipelines
@@ -1152,7 +1152,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_job_candidates(job_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_job_candidates(job_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all candidates who applied to a job.
         Wraps: GET /jobs/{id}/candidates
@@ -1169,7 +1169,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_job_activities(job_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_job_activities(job_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all activities for a job.
         Wraps: GET /jobs/{id}/activities
@@ -1186,7 +1186,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_job_attachments(job_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_job_attachments(job_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all attachments for a job.
         Wraps: GET /jobs/{id}/attachments
@@ -1203,7 +1203,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_job_custom_fields(job_id: int) -> dict[str, Any]:
+    async def list_job_custom_fields(job_id: int | str) -> dict[str, Any]:
         """
         Get all custom fields for a job.
         Wraps: GET /jobs/{id}/custom_fields
@@ -1218,7 +1218,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_job_custom_field(job_id: int, field_id: int) -> dict[str, Any]:
+    async def get_job_custom_field(job_id: int | str, field_id: int | str) -> dict[str, Any]:
         """
         Get a specific custom field for a job.
         Wraps: GET /jobs/{id}/custom_fields/{field_id}
@@ -1234,7 +1234,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def update_job_custom_fields(job_id: int, fields: dict[str, Any]) -> dict[str, Any]:
+    async def update_job_custom_fields(job_id: int | str, fields: dict[str, Any]) -> dict[str, Any]:
         """
         Update custom fields for a job.
         Wraps: PUT /jobs/{id}/custom_fields
@@ -1250,7 +1250,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def update_job_custom_field(job_id: int, field_id: int, value: Any) -> dict[str, Any]:
+    async def update_job_custom_field(job_id: int | str, field_id: int | str, value: Any) -> dict[str, Any]:
         """
         Update a specific custom field for a job.
         Wraps: PUT /jobs/{id}/custom_fields/{field_id}
@@ -1282,7 +1282,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_job_status(status_id: int) -> dict[str, Any]:
+    async def get_job_status(status_id: int | str) -> dict[str, Any]:
         """
         Get a job status definition by ID.
         Wraps: GET /jobs/statuses/{id}
@@ -1297,7 +1297,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def change_job_status(job_id: int, status_id: int, reason: Optional[str] = None) -> dict[str, Any]:
+    async def change_job_status(job_id: int | str, status_id: int | str, reason: Optional[str] = None) -> dict[str, Any]:
         """
         Change the status of a job.
         Wraps: POST /jobs/{id}/status
@@ -1317,7 +1317,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_job_tags(job_id: int) -> dict[str, Any]:
+    async def list_job_tags(job_id: int | str) -> dict[str, Any]:
         """
         List all tags assigned to a job.
         Wraps: GET /jobs/{id}/tags
@@ -1332,7 +1332,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def attach_job_tags(job_id: int, tag_ids: list[int]) -> dict[str, Any]:
+    async def attach_job_tags(job_id: int | str, tag_ids: list[int]) -> dict[str, Any]:
         """
         Add tags to a job (keeps existing tags).
         Wraps: PUT /jobs/{id}/tags
@@ -1349,7 +1349,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_job_tag(job_id: int, tag_id: int) -> dict[str, Any]:
+    async def delete_job_tag(job_id: int | str, tag_id: int | str) -> dict[str, Any]:
         """
         Remove a specific tag from a job.
         Wraps: DELETE /jobs/{id}/tags/{tag_id}
@@ -1365,7 +1365,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_job_tasks(job_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_job_tasks(job_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all tasks associated with a job.
         Wraps: GET /jobs/{id}/tasks
@@ -1400,7 +1400,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_job_list(list_id: int) -> dict[str, Any]:
+    async def get_job_list(list_id: int | str) -> dict[str, Any]:
         """
         Get details of a specific job list.
         Wraps: GET /jobs/lists/{id}
@@ -1437,7 +1437,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
     # NOTE: update_job_list removed - CATS API v3 spec has no PUT endpoint for job lists.
     # @mcp.tool()
     # async def update_job_list(
-    #     list_id: int,
+    #     list_id: int | str,
     #     name: Optional[str] = None,
     #     description: Optional[str] = None
     # ) -> dict[str, Any]:
@@ -1450,7 +1450,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_job_list(list_id: int) -> dict[str, Any]:
+    async def delete_job_list(list_id: int | str) -> dict[str, Any]:
         """
         Delete a job list.
         Wraps: DELETE /jobs/lists/{id}
@@ -1465,7 +1465,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_job_list_items(list_id: int, per_page: int = 25) -> dict[str, Any]:
+    async def list_job_list_items(list_id: int | str, per_page: int = 25) -> dict[str, Any]:
         """
         List all items in a specific job list.
         Wraps: GET /jobs/lists/{id}/items
@@ -1482,7 +1482,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_job_list_item(list_id: int, item_id: int) -> dict[str, Any]:
+    async def get_job_list_item(list_id: int | str, item_id: int | str) -> dict[str, Any]:
         """
         Get a specific item from a job list.
         Wraps: GET /jobs/lists/{list_id}/items/{item_id}
@@ -1498,7 +1498,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def create_job_list_items(list_id: int, job_ids: list[int]) -> dict[str, Any]:
+    async def create_job_list_items(list_id: int | str, job_ids: list[int]) -> dict[str, Any]:
         """
         Add jobs to a job list.
         Wraps: POST /jobs/lists/{id}/items
@@ -1515,7 +1515,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_job_list_item(list_id: int, item_id: int) -> dict[str, Any]:
+    async def delete_job_list_item(list_id: int | str, item_id: int | str) -> dict[str, Any]:
         """
         Remove an item from a job list.
         Wraps: DELETE /jobs/lists/{list_id}/items/{item_id}
@@ -1533,7 +1533,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
     # ========== JOB APPLICATIONS ==========
 
     @mcp.tool()
-    async def list_job_applications(job_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_job_applications(job_id: int | str, per_page: int = 25, page: int = 1) -> dict[str, Any]:
         """
         List all applications for a specific job.
         Wraps: GET /jobs/{id}/applications
@@ -1551,7 +1551,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_job_application(application_id: int) -> dict[str, Any]:
+    async def get_job_application(application_id: int | str) -> dict[str, Any]:
         """
         Get details of a specific application.
         Wraps: GET /jobs/applications/{id}
@@ -1566,7 +1566,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_job_application_fields(application_id: int) -> dict[str, Any]:
+    async def list_job_application_fields(application_id: int | str) -> dict[str, Any]:
         """
         List all fields for a specific job application.
         Wraps: GET /jobs/applications/{id}/fields
@@ -1604,7 +1604,7 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_pipeline(pipeline_id: int) -> dict[str, Any]:
+    async def get_pipeline(pipeline_id: int | str) -> dict[str, Any]:
         """
         Get detailed information about a specific pipeline.
         Wraps: GET /pipelines/{id}
@@ -1651,7 +1651,7 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_pipeline(
-        pipeline_id: int,
+        pipeline_id: int | str,
         name: Optional[str] = None,
         status_id: Optional[int] = None
     ) -> dict[str, Any]:
@@ -1677,7 +1677,7 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_pipeline(pipeline_id: int) -> dict[str, Any]:
+    async def delete_pipeline(pipeline_id: int | str) -> dict[str, Any]:
         """
         Delete a pipeline entry.
         Wraps: DELETE /pipelines/{id}
@@ -1737,7 +1737,7 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_pipeline_workflow(workflow_id: int) -> dict[str, Any]:
+    async def get_pipeline_workflow(workflow_id: int | str) -> dict[str, Any]:
         """
         Get details of a specific pipeline workflow.
         Wraps: GET /pipelines/workflows/{workflow_id}
@@ -1752,7 +1752,7 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def list_pipeline_workflow_statuses(workflow_id: int) -> dict[str, Any]:
+    async def list_pipeline_workflow_statuses(workflow_id: int | str) -> dict[str, Any]:
         """
         List all statuses/stages in a workflow.
         Wraps: GET /pipelines/workflows/{id}/statuses
@@ -1767,7 +1767,7 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_pipeline_workflow_status(workflow_id: int, status_id: int) -> dict[str, Any]:
+    async def get_pipeline_workflow_status(workflow_id: int | str, status_id: int | str) -> dict[str, Any]:
         """
         Get details of a specific workflow status.
         Wraps: GET /pipelines/workflows/{id}/statuses/{status_id}
@@ -1783,7 +1783,7 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_pipeline_statuses(pipeline_id: int) -> dict[str, Any]:
+    async def get_pipeline_statuses(pipeline_id: int | str) -> dict[str, Any]:
         """
         Get available statuses for a pipeline.
         Wraps: GET /pipelines/{id}/statuses
@@ -1799,8 +1799,8 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def change_pipeline_status(
-        pipeline_id: int,
-        status_id: int,
+        pipeline_id: int | str,
+        status_id: int | str,
         notes: Optional[str] = None
     ) -> dict[str, Any]:
         """
@@ -1858,7 +1858,7 @@ def register_context_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def authorize_user(user_id: int, action: str) -> dict[str, Any]:
+    async def authorize_user(user_id: int | str, action: str) -> dict[str, Any]:
         """
         Check if a user is authorized for a specific action.
         Wraps: POST /authorization
@@ -1901,7 +1901,7 @@ def register_tasks_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def get_task(task_id: int) -> dict[str, Any]:
+    async def get_task(task_id: int | str) -> dict[str, Any]:
         """
         Get detailed information about a specific task.
         Wraps: GET /tasks/{id}
@@ -1956,7 +1956,7 @@ def register_tasks_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def update_task(
-        task_id: int,
+        task_id: int | str,
         title: Optional[str] = None,
         due_date: Optional[str] = None,
         status: Optional[str] = None,
@@ -1994,7 +1994,7 @@ def register_tasks_tools(mcp: FastMCP, make_request):
 
 
     @mcp.tool()
-    async def delete_task(task_id: int) -> dict[str, Any]:
+    async def delete_task(task_id: int | str) -> dict[str, Any]:
         """
         Delete a task.
         Wraps: DELETE /tasks/{id}
