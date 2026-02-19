@@ -10,22 +10,16 @@ management in the CATS API v3:
 4. Triggers - 2 tools
 5. Attachments - 4 tools
 6. Backups - 3 tools
-7. Events - 5 tools
+7. Events - 1 tool
 
-Total: 22 tools across 7 toolsets
+Total: 18 tools across 7 toolsets
 """
 
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from fastmcp import FastMCP
 
 
-async def make_request(method: str, endpoint: str, params: dict = None, json_data: dict = None) -> dict:
-    """Make authenticated request to CATS API"""
-    # This is imported from server.py at runtime
-    pass
-
-
-def register_tags_tools(mcp: FastMCP) -> None:
+def register_tags_tools(mcp: FastMCP, make_request: Callable = None) -> None:
     """
     Register tag management tools.
 
@@ -91,7 +85,7 @@ def register_tags_tools(mcp: FastMCP) -> None:
         return await make_request("GET", f"/tags/{tag_id}")
 
 
-def register_webhooks_tools(mcp: FastMCP) -> None:
+def register_webhooks_tools(mcp: FastMCP, make_request: Callable = None) -> None:
     """
     Register webhook management tools.
 
@@ -155,14 +149,14 @@ def register_webhooks_tools(mcp: FastMCP) -> None:
             - url: Target URL for webhook POSTs
             - events: List of subscribed event types
             - active: Whether webhook is enabled
-            - secret: Secret key for HMAC signature verification
+            - hmac_key: Signing key for HMAC signature verification
             - created_at: Creation timestamp
             - last_triggered: Last successful trigger timestamp
             - failure_count: Number of consecutive failures
 
         Security Note:
             Verify webhook signatures using HMAC-SHA256:
-            signature = HMAC-SHA256(secret, request_body)
+            signature = HMAC-SHA256(signing_key, request_body)
             Compare with X-CATS-Signature header
 
         Example:
@@ -202,7 +196,7 @@ def register_webhooks_tools(mcp: FastMCP) -> None:
             - url: Configured URL
             - events: Subscribed events
             - active: Active status
-            - secret: Generated secret key for signature verification (save this!)
+            - signing_key: Generated HMAC key for signature verification (save this!)
             - created_at: Creation timestamp
 
         Example:
@@ -211,8 +205,8 @@ def register_webhooks_tools(mcp: FastMCP) -> None:
             ...     events=["candidate.created", "candidate.updated"],
             ...     description="Sync candidates to CRM"
             ... )
-            >>> print(f"Webhook created! Secret: {webhook['secret']}")
-            >>> # Save the secret securely for signature verification
+            >>> print(f"Webhook created! Save the signing key: {webhook['signing_key']}")
+            >>> # Store the signing key securely for signature verification
         """
         payload = {
             "url": url,
@@ -249,7 +243,7 @@ def register_webhooks_tools(mcp: FastMCP) -> None:
         return await make_request("DELETE", f"/webhooks/{webhook_id}")
 
 
-def register_users_tools(mcp: FastMCP) -> None:
+def register_users_tools(mcp: FastMCP, make_request: Callable = None) -> None:
     """
     Register user management tools.
 
@@ -325,7 +319,7 @@ def register_users_tools(mcp: FastMCP) -> None:
         return await make_request("GET", f"/users/{user_id}")
 
 
-def register_triggers_tools(mcp: FastMCP) -> None:
+def register_triggers_tools(mcp: FastMCP, make_request: Callable = None) -> None:
     """
     Register trigger management tools (read-only).
 
@@ -411,7 +405,7 @@ def register_triggers_tools(mcp: FastMCP) -> None:
         return await make_request("GET", f"/triggers/{trigger_id}")
 
 
-def register_attachments_tools(mcp: FastMCP) -> None:
+def register_attachments_tools(mcp: FastMCP, make_request: Callable = None) -> None:
     """
     Register attachment management tools.
 
@@ -569,7 +563,7 @@ def register_attachments_tools(mcp: FastMCP) -> None:
         return await make_request("POST", "/attachments/parse", json_data=payload)
 
 
-def register_backups_tools(mcp: FastMCP) -> None:
+def register_backups_tools(mcp: FastMCP, make_request: Callable = None) -> None:
     """
     Register backup management tools.
 
@@ -725,284 +719,53 @@ def register_backups_tools(mcp: FastMCP) -> None:
         return await make_request("POST", "/backups", json_data=payload)
 
 
-def register_events_tools(mcp: FastMCP) -> None:
+def register_events_tools(mcp: FastMCP, make_request: Callable = None) -> None:
     """
-    Register event/calendar management tools.
+    Register system event stream tools.
 
-    Events represent scheduled activities like interviews, meetings, calls.
-    Full CRUD operations supported.
+    Events represent a chronological stream of system changes (audit log).
+    Use to poll for changes instead of repeatedly fetching all records.
+    Event types include: candidate.created, candidate.status_changed,
+    job.created, pipeline.status_changed, etc.
     """
 
     @mcp.tool()
     async def list_events(
-        per_page: int = 25,
-        page: int = 1,
-        candidate_id: Optional[int] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        starting_after_id: Optional[int] = None,
+        starting_after_timestamp: Optional[str] = None
     ) -> dict[str, Any]:
         """
-        List all calendar events.
+        List system events (audit log stream).
+
+        Returns a chronological stream of system changes. Use either
+        starting_after_id or starting_after_timestamp to paginate through
+        the event stream. Events are returned in chronological order.
 
         Wraps: GET /events
 
+        Event types include:
+        - candidate.created, candidate.updated, candidate.deleted
+        - candidate.status_changed
+        - job.created, job.updated, job.deleted, job.status_changed
+        - pipeline.created, pipeline.deleted, pipeline.status_changed
+        - company.created, company.updated, company.deleted
+        - contact.created, contact.updated, contact.deleted
+        - activity.created, activity.updated, activity.deleted
+        - user.created, user.updated, user.deleted
+
         Args:
-            per_page: Number of results per page (default: 25, max: 100)
-            page: Page number to retrieve (default: 1)
-            candidate_id: Filter by candidate ID
-            start_date: Filter events starting after this date (ISO 8601)
-            end_date: Filter events ending before this date (ISO 8601)
+            starting_after_id: Return events after this event ID (for cursor-based pagination)
+            starting_after_timestamp: Return events after this timestamp (ISO 8601 / RFC 3339)
 
         Returns:
-            dict containing:
-            - events: List of event objects
-            - total_count: Total number of events
-            - page: Current page
-            - per_page: Results per page
-
-        Event object contains:
-        - id: Event ID
-        - title: Event title
-        - description: Event description
-        - type: interview, meeting, call, other
-        - start_time: Event start timestamp (ISO 8601)
-        - end_time: Event end timestamp (ISO 8601)
-        - location: Physical or virtual location
-        - candidate_id: Associated candidate ID (if applicable)
-        - job_id: Associated job ID (if applicable)
-        - attendees: List of attendee user IDs
-        - created_by: User who created the event
-        - created_at: Creation timestamp
-
-        Example:
-            >>> # Get upcoming events for next week
-            >>> from datetime import datetime, timedelta
-            >>> start = datetime.now().isoformat()
-            >>> end = (datetime.now() + timedelta(days=7)).isoformat()
-            >>> events = await list_events(start_date=start, end_date=end)
-            >>> print(f"Upcoming events: {events['total_count']}")
-            >>> for evt in events["events"]:
-            ...     print(f"{evt['start_time']}: {evt['title']}")
+            dict: Stream of system events with event type, entity info, and timestamps
         """
-        params = {"per_page": per_page, "page": page}
-        if candidate_id:
-            params["candidate_id"] = candidate_id
-        if start_date:
-            params["start_date"] = start_date
-        if end_date:
-            params["end_date"] = end_date
+        params = {}
+        if starting_after_id is not None:
+            params["starting_after_id"] = starting_after_id
+        if starting_after_timestamp is not None:
+            params["starting_after_timestamp"] = starting_after_timestamp
         return await make_request("GET", "/events", params=params)
-
-    @mcp.tool()
-    async def get_event(event_id: int) -> dict[str, Any]:
-        """
-        Get details of a specific event.
-
-        Wraps: GET /events/{id}
-
-        Args:
-            event_id: The unique identifier of the event
-
-        Returns:
-            dict containing:
-            - id: Event ID
-            - title: Event title
-            - description: Event description
-            - type: interview, meeting, call, other
-            - start_time: Event start timestamp (ISO 8601)
-            - end_time: Event end timestamp (ISO 8601)
-            - duration_minutes: Event duration in minutes
-            - location: Physical or virtual location
-            - meeting_url: Virtual meeting URL (if applicable)
-            - candidate_id: Associated candidate ID
-            - candidate_name: Candidate name
-            - job_id: Associated job ID
-            - job_title: Job title
-            - attendees: List of attendee objects
-              - user_id: User ID
-              - name: Attendee name
-              - email: Attendee email
-              - response: accepted, declined, tentative, no_response
-            - reminders: Reminder settings
-            - created_by: User who created the event
-            - created_at: Creation timestamp
-            - updated_at: Last update timestamp
-
-        Example:
-            >>> event = await get_event(60606)
-            >>> print(f"Event: {event['title']}")
-            >>> print(f"Time: {event['start_time']} to {event['end_time']}")
-            >>> print(f"Attendees: {len(event['attendees'])}")
-            >>> for att in event['attendees']:
-            ...     print(f"  - {att['name']}: {att['response']}")
-        """
-        return await make_request("GET", f"/events/{event_id}")
-
-    @mcp.tool()
-    async def create_event(
-        title: str,
-        start_time: str,
-        end_time: str,
-        event_type: str = "meeting",
-        description: Optional[str] = None,
-        location: Optional[str] = None,
-        meeting_url: Optional[str] = None,
-        candidate_id: Optional[int] = None,
-        job_id: Optional[int] = None,
-        attendee_ids: Optional[list[int]] = None
-    ) -> dict[str, Any]:
-        """
-        Create a new calendar event.
-
-        Wraps: POST /events
-
-        Args:
-            title: Event title
-            start_time: Event start timestamp (ISO 8601, e.g., "2025-11-01T14:00:00Z")
-            end_time: Event end timestamp (ISO 8601)
-            event_type: Type of event (interview, meeting, call, other)
-            description: Event description
-            location: Physical location or address
-            meeting_url: Virtual meeting URL (e.g., Zoom, Google Meet)
-            candidate_id: Associated candidate ID
-            job_id: Associated job ID
-            attendee_ids: List of user IDs to invite
-
-        Returns:
-            dict containing:
-            - id: New event ID
-            - title: Event title
-            - type: Event type
-            - start_time: Start timestamp
-            - end_time: End timestamp
-            - location: Location
-            - attendees: List of attendee objects
-            - created_at: Creation timestamp
-            - calendar_invite_sent: Whether calendar invites were sent
-
-        Example:
-            >>> event = await create_event(
-            ...     title="Technical Interview - Jane Doe",
-            ...     start_time="2025-11-01T14:00:00Z",
-            ...     end_time="2025-11-01T15:00:00Z",
-            ...     event_type="interview",
-            ...     meeting_url="https://zoom.us/j/123456789",
-            ...     candidate_id=407373086,
-            ...     job_id=16456911,
-            ...     attendee_ids=[80808, 80809]
-            ... )
-            >>> print(f"Event created with ID: {event['id']}")
-            >>> print(f"Calendar invites sent: {event['calendar_invite_sent']}")
-        """
-        payload = {
-            "title": title,
-            "start_time": start_time,
-            "end_time": end_time,
-            "type": event_type
-        }
-        if description:
-            payload["description"] = description
-        if location:
-            payload["location"] = location
-        if meeting_url:
-            payload["meeting_url"] = meeting_url
-        if candidate_id:
-            payload["candidate_id"] = candidate_id
-        if job_id:
-            payload["job_id"] = job_id
-        if attendee_ids:
-            payload["attendee_ids"] = attendee_ids
-        return await make_request("POST", "/events", json_data=payload)
-
-    @mcp.tool()
-    async def update_event(
-        event_id: int,
-        title: Optional[str] = None,
-        start_time: Optional[str] = None,
-        end_time: Optional[str] = None,
-        description: Optional[str] = None,
-        location: Optional[str] = None,
-        meeting_url: Optional[str] = None,
-        attendee_ids: Optional[list[int]] = None
-    ) -> dict[str, Any]:
-        """
-        Update an existing calendar event.
-
-        Only provided fields will be updated. Omitted fields remain unchanged.
-
-        Wraps: PUT /events/{id}
-
-        Args:
-            event_id: The unique identifier of the event to update
-            title: Updated event title
-            start_time: Updated start timestamp (ISO 8601)
-            end_time: Updated end timestamp (ISO 8601)
-            description: Updated description
-            location: Updated location
-            meeting_url: Updated virtual meeting URL
-            attendee_ids: Updated list of attendee user IDs
-
-        Returns:
-            dict containing:
-            - id: Event ID
-            - title: Updated title
-            - start_time: Updated start time
-            - end_time: Updated end time
-            - updated_at: Update timestamp
-            - calendar_update_sent: Whether update notifications were sent
-
-        Example:
-            >>> updated = await update_event(
-            ...     event_id=60606,
-            ...     start_time="2025-11-01T15:00:00Z",  # Reschedule
-            ...     end_time="2025-11-01T16:00:00Z",
-            ...     location="Conference Room B"
-            ... )
-            >>> print(f"Event updated: {updated['title']}")
-            >>> print(f"New time: {updated['start_time']}")
-        """
-        payload = {}
-        if title is not None:
-            payload["title"] = title
-        if start_time is not None:
-            payload["start_time"] = start_time
-        if end_time is not None:
-            payload["end_time"] = end_time
-        if description is not None:
-            payload["description"] = description
-        if location is not None:
-            payload["location"] = location
-        if meeting_url is not None:
-            payload["meeting_url"] = meeting_url
-        if attendee_ids is not None:
-            payload["attendee_ids"] = attendee_ids
-        return await make_request("PUT", f"/events/{event_id}", json_data=payload)
-
-    @mcp.tool()
-    async def delete_event(event_id: int) -> dict[str, Any]:
-        """
-        Delete a calendar event.
-
-        This permanently removes the event. Attendees will receive cancellation
-        notifications.
-
-        Wraps: DELETE /events/{id}
-
-        Args:
-            event_id: The unique identifier of the event to delete
-
-        Returns:
-            dict containing:
-            - success: True if deletion succeeded
-            - message: Confirmation message
-            - cancellation_sent: Whether cancellation notifications were sent
-
-        Example:
-            >>> result = await delete_event(60606)
-            >>> print(result["message"])
-            "Event successfully deleted and attendees notified"
-        """
-        return await make_request("DELETE", f"/events/{event_id}")
 
 
 # Export all registration functions

@@ -1,84 +1,129 @@
 """
-Tests for CATS MCP Server
+Tests for CATS MCP Server (server.py)
 
-Run with: pytest tests/
+Run with: pytest tests/test_server.py -v
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
-@pytest.mark.asyncio
-async def test_server_imports():
-    """Test that server module can be imported"""
+def test_server_imports():
+    """Test that server module can be imported and mcp instance exists"""
     import server
     assert server.mcp is not None
-    assert server.mcp.name == "CATS API Server"
-
-
-@pytest.mark.asyncio
-async def test_health_check_without_config():
-    """Test health_check tool when API is not configured"""
-    import server
-
-    # Access the actual function from the decorated tool
-    health_check_fn = server.health_check.fn
-
-    with patch("server.CATS_API_URL", ""), patch("server.CATS_API_KEY", ""):
-        result = await health_check_fn()
-        assert result["status"] in ["unhealthy", "error"]
-
-
-@pytest.mark.asyncio
-async def test_make_cats_request_missing_config():
-    """Test that make_cats_request raises error when config is missing"""
-    from server import make_cats_request, CATSAPIError
-
-    with patch("server.CATS_API_URL", ""), patch("server.CATS_API_KEY", ""):
-        with pytest.raises(CATSAPIError) as exc_info:
-            await make_cats_request("GET", "/test")
-        assert "not configured" in str(exc_info.value).lower()
-
-
-def test_server_configuration():
-    """Test server configuration resource"""
-    import server
-
-    # Access the actual function from the decorated resource
-    get_server_settings_fn = server.get_server_settings.fn
-
-    settings = get_server_settings_fn()
-    assert settings["server_name"] == "CATS API Server"
-    assert settings["version"] == "0.1.0"
-    assert settings["transport"] == "HTTP"
-    assert "health_check" in settings["tools"]
-    assert "list_candidates" in settings["tools"]
-    assert "get_job" in settings["tools"]
-
-
-def test_decorated_functions_exist():
-    """Test that decorated functions are registered"""
-    import server
-
-    # Verify decorated tools exist and have the .fn attribute
-    assert hasattr(server, 'health_check')
-    assert hasattr(server.health_check, 'fn')
-
-    assert hasattr(server, 'list_candidates')
-    assert hasattr(server.list_candidates, 'fn')
-
-    assert hasattr(server, 'get_job')
-    assert hasattr(server.get_job, 'fn')
-
-    # Verify decorated resource exists
-    assert hasattr(server, 'get_server_settings')
-    assert hasattr(server.get_server_settings, 'fn')
+    assert server.mcp.name == "CATS API v3"
 
 
 def test_server_has_required_constants():
     """Test that server has required configuration constants"""
     import server
-
-    assert hasattr(server, 'CATS_API_URL')
+    assert hasattr(server, 'CATS_API_BASE_URL')
     assert hasattr(server, 'CATS_API_KEY')
     assert hasattr(server, 'mcp')
+    assert hasattr(server, 'CATSAPIError')
+    assert hasattr(server, 'make_request')
+    assert hasattr(server, 'load_toolsets')
+    assert hasattr(server, 'DEFAULT_TOOLSETS')
+    assert hasattr(server, 'ALL_TOOLSETS')
+
+
+def test_default_toolsets_defined():
+    """Test that default toolsets list is correct"""
+    import server
+    assert 'candidates' in server.DEFAULT_TOOLSETS
+    assert 'jobs' in server.DEFAULT_TOOLSETS
+    assert 'pipelines' in server.DEFAULT_TOOLSETS
+    assert 'context' in server.DEFAULT_TOOLSETS
+    assert 'tasks' in server.DEFAULT_TOOLSETS
+    assert len(server.DEFAULT_TOOLSETS) == 5
+
+
+def test_all_toolsets_defined():
+    """Test that all toolsets are defined"""
+    import server
+    expected = [
+        'candidates', 'jobs', 'pipelines', 'context', 'tasks',
+        'companies', 'contacts', 'activities', 'portals', 'work_history',
+        'tags', 'webhooks', 'users', 'triggers', 'attachments', 'backups', 'events'
+    ]
+    assert len(server.ALL_TOOLSETS) == 17
+    for toolset in expected:
+        assert toolset in server.ALL_TOOLSETS, f"Missing toolset: {toolset}"
+
+
+@pytest.mark.asyncio
+async def test_make_request_missing_api_key():
+    """Test that make_request raises error when API key is missing"""
+    import server
+
+    with patch.object(server, 'CATS_API_KEY', ''):
+        with pytest.raises(server.CATSAPIError) as exc_info:
+            await server.make_request("GET", "/test")
+        assert "not configured" in str(exc_info.value).lower()
+
+
+@pytest.mark.asyncio
+async def test_make_request_success():
+    """Test make_request with mocked successful HTTP response"""
+    import server
+
+    # httpx response.json() is synchronous - use MagicMock not AsyncMock
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"data": [{"id": 1}]}
+    mock_response.raise_for_status = MagicMock()
+    mock_response.headers = {}
+
+    with patch.object(server, 'CATS_API_KEY', 'test-key-123'):
+        with patch('server.httpx.AsyncClient') as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.request = AsyncMock(return_value=mock_response)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            result = await server.make_request("GET", "/candidates")
+            assert result == {"data": [{"id": 1}]}
+            mock_client.request.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_make_request_http_error():
+    """Test make_request raises CATSAPIError on HTTP errors"""
+    import server
+    import httpx
+
+    mock_response = AsyncMock()
+    mock_response.status_code = 404
+    mock_response.text = "Not Found"
+    mock_response.headers = {}
+
+    with patch.object(server, 'CATS_API_KEY', 'test-key-123'):
+        with patch('server.httpx.AsyncClient') as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.request = AsyncMock(
+                side_effect=httpx.HTTPStatusError(
+                    "Not Found",
+                    request=httpx.Request("GET", "https://api.catsone.com/v3/test"),
+                    response=httpx.Response(404, text="Not Found")
+                )
+            )
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            with pytest.raises(server.CATSAPIError) as exc_info:
+                await server.make_request("GET", "/test")
+            assert "404" in str(exc_info.value) or "error" in str(exc_info.value).lower()
+
+
+def test_load_toolsets_function_exists():
+    """Test that load_toolsets function exists and is callable"""
+    import server
+    assert callable(server.load_toolsets)
+
+
+def test_cats_api_error_is_exception():
+    """Test CATSAPIError is a proper exception"""
+    import server
+    error = server.CATSAPIError("test error")
+    assert isinstance(error, Exception)
+    assert str(error) == "test error"

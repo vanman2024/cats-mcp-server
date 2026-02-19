@@ -132,57 +132,24 @@ from toolsets_data import (
 
 # Register all toolsets immediately
 register_candidates_tools(mcp, make_request)
-print("  ✓ candidates (28 tools)")
-
 register_jobs_tools(mcp, make_request)
-print("  ✓ jobs (40 tools)")
-
 register_pipelines_tools(mcp, make_request)
-print("  ✓ pipelines (13 tools)")
-
 register_context_tools(mcp, make_request)
-print("  ✓ context (3 tools)")
-
 register_tasks_tools(mcp, make_request)
-print("  ✓ tasks (5 tools)")
-
 register_companies_tools(mcp, make_request)
-print("  ✓ companies (18 tools)")
-
 register_contacts_tools(mcp, make_request)
-print("  ✓ contacts (18 tools)")
-
 register_activities_tools(mcp, make_request)
-print("  ✓ activities (6 tools)")
-
 register_portals_tools(mcp, make_request)
-print("  ✓ portals (8 tools)")
-
 register_work_history_tools(mcp, make_request)
-print("  ✓ work_history (3 tools)")
+register_tags_tools(mcp, make_request)
+register_webhooks_tools(mcp, make_request)
+register_users_tools(mcp, make_request)
+register_triggers_tools(mcp, make_request)
+register_attachments_tools(mcp, make_request)
+register_backups_tools(mcp, make_request)
+register_events_tools(mcp, make_request)
 
-register_tags_tools(mcp)
-print("  ✓ tags (2 tools)")
-
-register_webhooks_tools(mcp)
-print("  ✓ webhooks (4 tools)")
-
-register_users_tools(mcp)
-print("  ✓ users (2 tools)")
-
-register_triggers_tools(mcp)
-print("  ✓ triggers (2 tools)")
-
-register_attachments_tools(mcp)
-print("  ✓ attachments (4 tools)")
-
-register_backups_tools(mcp)
-print("  ✓ backups (3 tools)")
-
-register_events_tools(mcp)
-print("  ✓ events (5 tools)")
-
-print("\n✅ All 164 tools loaded!\n")
+print("✅ All 189 CATS API tools loaded")
 
 if __name__ == "__main__":
     # Just run the server - tools already registered

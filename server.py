@@ -1,7 +1,7 @@
 """
 CATS MCP Server - FastMCP server for CATS API v3
 
-Supports toolset-based loading for 162 endpoints across 17 toolsets.
+Supports toolset-based loading for 189 endpoints across 17 toolsets.
 Use --toolsets flag or CATS_TOOLSETS env var to control which tools load.
 """
 
@@ -137,18 +137,18 @@ def load_toolsets(toolsets: Set[str]):
 
     logger.info(f"Loading toolsets: {', '.join(sorted(toolsets))}")
 
-    # DEFAULT TOOLSETS (89 tools)
+    # DEFAULT TOOLSETS (96 tools)
     if 'candidates' in toolsets or 'all' in toolsets:
         register_candidates_tools(mcp, make_request)
-        logger.info("  ✓ candidates (28 tools)")
+        logger.info("  ✓ candidates (43 tools)")
 
     if 'jobs' in toolsets or 'all' in toolsets:
         register_jobs_tools(mcp, make_request)
-        logger.info("  ✓ jobs (40 tools)")
+        logger.info("  ✓ jobs (33 tools)")
 
     if 'pipelines' in toolsets or 'all' in toolsets:
         register_pipelines_tools(mcp, make_request)
-        logger.info("  ✓ pipelines (13 tools)")
+        logger.info("  ✓ pipelines (12 tools)")
 
     if 'context' in toolsets or 'all' in toolsets:
         register_context_tools(mcp, make_request)
@@ -158,14 +158,14 @@ def load_toolsets(toolsets: Set[str]):
         register_tasks_tools(mcp, make_request)
         logger.info("  ✓ tasks (5 tools)")
 
-    # RECRUITING TOOLSETS (52 tools)
+    # RECRUITING TOOLSETS (75 tools)
     if 'companies' in toolsets or 'all' in toolsets:
         register_companies_tools(mcp, make_request)
-        logger.info("  ✓ companies (18 tools)")
+        logger.info("  ✓ companies (30 tools)")
 
     if 'contacts' in toolsets or 'all' in toolsets:
         register_contacts_tools(mcp, make_request)
-        logger.info("  ✓ contacts (18 tools)")
+        logger.info("  ✓ contacts (28 tools)")
 
     if 'activities' in toolsets or 'all' in toolsets:
         register_activities_tools(mcp, make_request)
@@ -179,34 +179,34 @@ def load_toolsets(toolsets: Set[str]):
         register_work_history_tools(mcp, make_request)
         logger.info("  ✓ work_history (3 tools)")
 
-    # DATA & CONFIG TOOLSETS (21 tools)
+    # DATA & CONFIG TOOLSETS (18 tools)
     if 'tags' in toolsets or 'all' in toolsets:
-        register_tags_tools(mcp)
+        register_tags_tools(mcp, make_request)
         logger.info("  ✓ tags (2 tools)")
 
     if 'webhooks' in toolsets or 'all' in toolsets:
-        register_webhooks_tools(mcp)
+        register_webhooks_tools(mcp, make_request)
         logger.info("  ✓ webhooks (4 tools)")
 
     if 'users' in toolsets or 'all' in toolsets:
-        register_users_tools(mcp)
+        register_users_tools(mcp, make_request)
         logger.info("  ✓ users (2 tools)")
 
     if 'triggers' in toolsets or 'all' in toolsets:
-        register_triggers_tools(mcp)
+        register_triggers_tools(mcp, make_request)
         logger.info("  ✓ triggers (2 tools)")
 
     if 'attachments' in toolsets or 'all' in toolsets:
-        register_attachments_tools(mcp)
+        register_attachments_tools(mcp, make_request)
         logger.info("  ✓ attachments (4 tools)")
 
     if 'backups' in toolsets or 'all' in toolsets:
-        register_backups_tools(mcp)
+        register_backups_tools(mcp, make_request)
         logger.info("  ✓ backups (3 tools)")
 
     if 'events' in toolsets or 'all' in toolsets:
-        register_events_tools(mcp)
-        logger.info("  ✓ events (5 tools)")
+        register_events_tools(mcp, make_request)
+        logger.info("  ✓ events (1 tool)")
 
     # Calculate and display total
     loaded_count = len(toolsets) if 'all' not in toolsets else len(ALL_TOOLSETS)
@@ -231,30 +231,30 @@ if __name__ == "__main__":
 
     if args.list_toolsets:
         print("CATS API v3 MCP Server - Available Toolsets\n")
-        print("DEFAULT toolsets (loaded by default, 89 tools):")
-        print("  - candidates (28 tools) - Core recruiting")
-        print("  - jobs (40 tools) - Job management")
-        print("  - pipelines (13 tools) - Workflow management")
+        print("DEFAULT toolsets (loaded by default, 96 tools):")
+        print("  - candidates (43 tools) - Core recruiting")
+        print("  - jobs (33 tools) - Job management")
+        print("  - pipelines (12 tools) - Workflow management")
         print("  - context (3 tools) - Site/user info")
         print("  - tasks (5 tools) - Task management")
-        print("\nRECRUITING toolsets (52 tools):")
-        print("  - companies (18 tools)")
-        print("  - contacts (18 tools)")
+        print("\nRECRUITING toolsets (75 tools):")
+        print("  - companies (30 tools)")
+        print("  - contacts (28 tools)")
         print("  - activities (6 tools)")
         print("  - portals (8 tools)")
         print("  - work_history (3 tools)")
-        print("\nDATA & CONFIG toolsets (21 tools):")
+        print("\nDATA & CONFIG toolsets (18 tools):")
         print("  - tags (2 tools)")
         print("  - webhooks (4 tools)")
         print("  - users (2 tools)")
         print("  - triggers (2 tools)")
         print("  - attachments (4 tools)")
         print("  - backups (3 tools)")
-        print("  - events (5 tools)")
+        print("  - events (1 tool)")
         print("\nUsage:")
         print("  python server.py                                    # Default toolsets")
         print("  python server.py --toolsets candidates,jobs          # Specific toolsets")
-        print("  python server.py --toolsets all                      # All 162 tools")
+        print("  python server.py --toolsets all                      # All 189 tools")
         print("  export CATS_TOOLSETS='candidates,companies' && python server.py")
         exit(0)
 

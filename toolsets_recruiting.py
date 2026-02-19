@@ -5,10 +5,11 @@ Complete recruiting-focused toolsets for CATS API v3
 
 from typing import Any, Optional
 from fastmcp import FastMCP
+from response_helpers import summarize_list_response
 
 
 # =============================================================================
-# COMPANIES TOOLSET (18 tools)
+# COMPANIES TOOLSET (30 tools)
 # =============================================================================
 
 def register_companies_tools(mcp: FastMCP, make_request):
@@ -16,20 +17,29 @@ def register_companies_tools(mcp: FastMCP, make_request):
 
     # Main Company Operations
     @mcp.tool()
-    async def list_companies(per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_companies(
+        per_page: int = 10,
+        page: int = 1,
+        fields: Optional[str] = None
+    ) -> dict[str, Any]:
         """
-        List all companies with pagination.
+        List companies with pagination (returns SUMMARY by default).
+        Use get_company(id) for full details of a specific company.
 
         GET /companies
 
         Args:
-            per_page: Number of companies per page (default: 25, max: 100)
+            per_page: Number of companies per page (default: 10, max: 100)
             page: Page number for pagination (default: 1)
+            fields: Comma-separated fields to include, or "all" for full response
 
         Returns:
-            List of companies with pagination metadata
+            Summary list of companies with pagination hints
         """
-        return await make_request("GET", "/companies", params={"per_page": per_page, "page": page})
+        raw = await make_request("GET", "/companies", params={"per_page": per_page, "page": page})
+        if fields == "all":
+            return raw
+        return summarize_list_response(raw, "companies", fields)
 
     @mcp.tool()
     async def get_company(company_id: int) -> dict[str, Any]:
@@ -161,42 +171,53 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("DELETE", f"/companies/{company_id}")
 
     @mcp.tool()
-    async def search_companies(query: str, per_page: int = 25) -> dict[str, Any]:
+    async def search_companies(query: str, per_page: int = 10, fields: Optional[str] = None) -> dict[str, Any]:
         """
-        Search companies by name or other criteria.
+        Search companies by name or other criteria (returns SUMMARY by default).
+        Use get_company(id) for full details.
 
         GET /companies/search
 
         Args:
             query: Search query string
-            per_page: Number of results per page (max: 100)
+            per_page: Number of results per page (default: 10)
+            fields: Comma-separated fields to include, or "all" for full response
 
         Returns:
-            List of matching companies
+            Summary list of matching companies
         """
-        return await make_request("GET", "/companies/search", params={"q": query, "per_page": per_page})
+        raw = await make_request("GET", "/companies/search", params={"q": query, "per_page": per_page})
+        if fields == "all":
+            return raw
+        return summarize_list_response(raw, "companies", fields)
 
     @mcp.tool()
     async def filter_companies(
         filters: dict[str, Any],
-        per_page: int = 25,
-        page: int = 1
+        per_page: int = 10,
+        page: int = 1,
+        fields: Optional[str] = None
     ) -> dict[str, Any]:
         """
-        Filter companies using advanced criteria.
+        Filter companies using advanced criteria (returns SUMMARY by default).
+        Use get_company(id) for full details.
 
         POST /companies/search
 
         Args:
             filters: Dictionary of filter criteria (e.g., {"city": "San Francisco", "state": "CA"})
-            per_page: Results per page (max: 100)
+            per_page: Results per page (default: 10)
             page: Page number
+            fields: Comma-separated fields to include, or "all" for full response
 
         Returns:
-            Filtered list of companies
+            Summary list of filtered companies
         """
         payload = {**filters, "per_page": per_page, "page": page}
-        return await make_request("POST", "/companies/search", json_data=payload)
+        raw = await make_request("POST", "/companies/search", json_data=payload)
+        if fields == "all":
+            return raw
+        return summarize_list_response(raw, "companies", fields)
 
     # Company Sub-Resources
     @mcp.tool()
@@ -430,7 +451,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         """
         Replace all tags on a company (replaces existing tags).
 
-        PUT /companies/{id}/tags
+        POST /companies/{id}/tags
 
         Args:
             company_id: Company ID
@@ -439,14 +460,14 @@ def register_companies_tools(mcp: FastMCP, make_request):
         Returns:
             Updated tag list
         """
-        return await make_request("PUT", f"/companies/{company_id}/tags", json_data={"tag_ids": tag_ids})
+        return await make_request("POST", f"/companies/{company_id}/tags", json_data={"tag_ids": tag_ids})
 
     @mcp.tool()
     async def attach_company_tags(company_id: int, tag_ids: list[int]) -> dict[str, Any]:
         """
         Attach additional tags to a company (additive).
 
-        POST /companies/{id}/tags
+        PUT /companies/{id}/tags
 
         Args:
             company_id: Company ID
@@ -455,23 +476,23 @@ def register_companies_tools(mcp: FastMCP, make_request):
         Returns:
             Updated tag list
         """
-        return await make_request("POST", f"/companies/{company_id}/tags", json_data={"tag_ids": tag_ids})
+        return await make_request("PUT", f"/companies/{company_id}/tags", json_data={"tag_ids": tag_ids})
 
     @mcp.tool()
-    async def delete_company_tags(company_id: int, tag_ids: list[int]) -> dict[str, Any]:
+    async def delete_company_tag(company_id: int, tag_id: int) -> dict[str, Any]:
         """
-        Remove specific tags from a company.
+        Remove a specific tag from a company.
 
-        DELETE /companies/{id}/tags
+        DELETE /companies/{id}/tags/{tag_id}
 
         Args:
             company_id: Company ID
-            tag_ids: List of tag IDs to remove
+            tag_id: Tag ID to remove
 
         Returns:
-            Updated tag list
+            Deletion confirmation
         """
-        return await make_request("DELETE", f"/companies/{company_id}/tags", json_data={"tag_ids": tag_ids})
+        return await make_request("DELETE", f"/companies/{company_id}/tags/{tag_id}")
 
     # Company Phones
     @mcp.tool()
@@ -491,19 +512,20 @@ def register_companies_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/companies/{company_id}/phones", params={"per_page": per_page})
 
     @mcp.tool()
-    async def get_company_phone(phone_id: int) -> dict[str, Any]:
+    async def get_company_phone(company_id: int, phone_id: int) -> dict[str, Any]:
         """
         Get a specific company phone.
 
-        GET /phones/{id}
+        GET /companies/{id}/phones/{phone_id}
 
         Args:
+            company_id: Company ID
             phone_id: Phone ID
 
         Returns:
             Phone details
         """
-        return await make_request("GET", f"/phones/{phone_id}")
+        return await make_request("GET", f"/companies/{company_id}/phones/{phone_id}")
 
     @mcp.tool()
     async def create_company_phone(company_id: int, phone: str, phone_type: str = "work") -> dict[str, Any]:
@@ -524,13 +546,14 @@ def register_companies_tools(mcp: FastMCP, make_request):
                                  json_data={"phone": phone, "type": phone_type})
 
     @mcp.tool()
-    async def update_company_phone(phone_id: int, phone: Optional[str] = None, phone_type: Optional[str] = None) -> dict[str, Any]:
+    async def update_company_phone(company_id: int, phone_id: int, phone: Optional[str] = None, phone_type: Optional[str] = None) -> dict[str, Any]:
         """
         Update a company phone number.
 
-        PUT /phones/{id}
+        PUT /companies/{id}/phones/{phone_id}
 
         Args:
+            company_id: Company ID
             phone_id: Phone ID
             phone: Updated phone number
             phone_type: Updated type
@@ -543,22 +566,23 @@ def register_companies_tools(mcp: FastMCP, make_request):
             payload["phone"] = phone
         if phone_type:
             payload["type"] = phone_type
-        return await make_request("PUT", f"/phones/{phone_id}", json_data=payload)
+        return await make_request("PUT", f"/companies/{company_id}/phones/{phone_id}", json_data=payload)
 
     @mcp.tool()
-    async def delete_company_phone(phone_id: int) -> dict[str, Any]:
+    async def delete_company_phone(company_id: int, phone_id: int) -> dict[str, Any]:
         """
         Delete a company phone number.
 
-        DELETE /phones/{id}
+        DELETE /companies/{id}/phones/{phone_id}
 
         Args:
+            company_id: Company ID
             phone_id: Phone ID
 
         Returns:
             Confirmation of deletion
         """
-        return await make_request("DELETE", f"/phones/{phone_id}")
+        return await make_request("DELETE", f"/companies/{company_id}/phones/{phone_id}")
 
     # Company Custom Fields Detail
     @mcp.tool()
@@ -576,308 +600,6 @@ def register_companies_tools(mcp: FastMCP, make_request):
             Custom field value
         """
         return await make_request("GET", f"/companies/{company_id}/custom_fields/{field_id}")
-
-    @mcp.tool()
-    async def list_company_custom_field_values(company_id: int) -> dict[str, Any]:
-        """
-        List all custom field values for a company.
-
-        GET /companies/{id}/custom_field_values
-
-        Args:
-            company_id: Company ID
-
-        Returns:
-            List of custom field values
-        """
-        return await make_request("GET", f"/companies/{company_id}/custom_field_values")
-
-    @mcp.tool()
-    async def get_company_custom_field_value(company_id: int, field_id: int) -> dict[str, Any]:
-        """
-        Get a specific custom field value for a company.
-
-        GET /companies/{id}/custom_field_values/{field_id}
-
-        Args:
-            company_id: Company ID
-            field_id: Custom field ID
-
-        Returns:
-            Custom field value details
-        """
-        return await make_request("GET", f"/companies/{company_id}/custom_field_values/{field_id}")
-
-    # Company Statuses
-    @mcp.tool()
-    async def list_company_statuses() -> dict[str, Any]:
-        """
-        List all available company statuses.
-
-        GET /company_statuses
-
-        Returns:
-            List of company statuses
-        """
-        return await make_request("GET", "/company_statuses")
-
-    @mcp.tool()
-    async def get_company_status(company_id: int) -> dict[str, Any]:
-        """
-        Get the current status of a company.
-
-        GET /companies/{id}/status
-
-        Args:
-            company_id: Company ID
-
-        Returns:
-            Current company status
-        """
-        return await make_request("GET", f"/companies/{company_id}/status")
-
-    @mcp.tool()
-    async def change_company_status(company_id: int, status_id: int, reason: Optional[str] = None) -> dict[str, Any]:
-        """
-        Change the status of a company.
-
-        PUT /companies/{id}/status
-
-        Args:
-            company_id: Company ID
-            status_id: New status ID
-            reason: Optional reason for change
-
-        Returns:
-            Updated company with new status
-        """
-        payload = {"status_id": status_id}
-        if reason:
-            payload["reason"] = reason
-        return await make_request("PUT", f"/companies/{company_id}/status", json_data=payload)
-
-    # Company Lists
-    @mcp.tool()
-    async def list_company_lists(per_page: int = 25, page: int = 1) -> dict[str, Any]:
-        """
-        List all company lists.
-
-        GET /company_lists
-
-        Args:
-            per_page: Results per page
-            page: Page number
-
-        Returns:
-            List of company lists
-        """
-        return await make_request("GET", "/company_lists", params={"per_page": per_page, "page": page})
-
-    @mcp.tool()
-    async def get_company_list(list_id: int) -> dict[str, Any]:
-        """
-        Get a specific company list.
-
-        GET /company_lists/{id}
-
-        Args:
-            list_id: List ID
-
-        Returns:
-            Company list details
-        """
-        return await make_request("GET", f"/company_lists/{list_id}")
-
-    @mcp.tool()
-    async def create_company_list(name: str, description: Optional[str] = None) -> dict[str, Any]:
-        """
-        Create a new company list.
-
-        POST /company_lists
-
-        Args:
-            name: List name
-            description: List description
-
-        Returns:
-            Created company list
-        """
-        payload = {"name": name}
-        if description:
-            payload["description"] = description
-        return await make_request("POST", "/company_lists", json_data=payload)
-
-    @mcp.tool()
-    async def delete_company_list(list_id: int) -> dict[str, Any]:
-        """
-        Delete a company list.
-
-        DELETE /company_lists/{id}
-
-        Args:
-            list_id: List ID
-
-        Returns:
-            Confirmation of deletion
-        """
-        return await make_request("DELETE", f"/company_lists/{list_id}")
-
-    @mcp.tool()
-    async def list_company_list_items(list_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
-        """
-        List all items in a company list.
-
-        GET /company_lists/{id}/items
-
-        Args:
-            list_id: List ID
-            per_page: Results per page
-            page: Page number
-
-        Returns:
-            List of company list items
-        """
-        return await make_request("GET", f"/company_lists/{list_id}/items",
-                                 params={"per_page": per_page, "page": page})
-
-    @mcp.tool()
-    async def get_company_list_item(list_id: int, item_id: int) -> dict[str, Any]:
-        """
-        Get a specific company list item.
-
-        GET /company_lists/{list_id}/items/{item_id}
-
-        Args:
-            list_id: List ID
-            item_id: Item ID
-
-        Returns:
-            Company list item details
-        """
-        return await make_request("GET", f"/company_lists/{list_id}/items/{item_id}")
-
-    @mcp.tool()
-    async def create_company_list_items(list_id: int, company_ids: list[int]) -> dict[str, Any]:
-        """
-        Add companies to a list.
-
-        POST /company_lists/{id}/items
-
-        Args:
-            list_id: List ID
-            company_ids: List of company IDs to add
-
-        Returns:
-            Created list items
-        """
-        return await make_request("POST", f"/company_lists/{list_id}/items",
-                                 json_data={"company_ids": company_ids})
-
-    @mcp.tool()
-    async def delete_company_list_item(list_id: int, item_id: int) -> dict[str, Any]:
-        """
-        Remove a company from a list.
-
-        DELETE /company_lists/{list_id}/items/{item_id}
-
-        Args:
-            list_id: List ID
-            item_id: Item ID
-
-        Returns:
-            Confirmation of deletion
-        """
-        return await make_request("DELETE", f"/company_lists/{list_id}/items/{item_id}")
-
-    # Company Departments
-    @mcp.tool()
-    async def list_departments(company_id: int, per_page: int = 25) -> dict[str, Any]:
-        """
-        List all departments for a company.
-
-        GET /companies/{id}/departments
-
-        Args:
-            company_id: Company ID
-            per_page: Results per page
-
-        Returns:
-            List of departments
-        """
-        return await make_request("GET", f"/companies/{company_id}/departments",
-                                 params={"per_page": per_page})
-
-    @mcp.tool()
-    async def get_department(department_id: int) -> dict[str, Any]:
-        """
-        Get a specific department.
-
-        GET /departments/{id}
-
-        Args:
-            department_id: Department ID
-
-        Returns:
-            Department details
-        """
-        return await make_request("GET", f"/departments/{department_id}")
-
-    @mcp.tool()
-    async def add_department(company_id: int, name: str, description: Optional[str] = None) -> dict[str, Any]:
-        """
-        Add a new department to a company.
-
-        POST /companies/{id}/departments
-
-        Args:
-            company_id: Company ID
-            name: Department name
-            description: Department description
-
-        Returns:
-            Created department
-        """
-        payload = {"name": name}
-        if description:
-            payload["description"] = description
-        return await make_request("POST", f"/companies/{company_id}/departments", json_data=payload)
-
-    @mcp.tool()
-    async def update_department(department_id: int, name: Optional[str] = None, description: Optional[str] = None) -> dict[str, Any]:
-        """
-        Update a department.
-
-        PUT /departments/{id}
-
-        Args:
-            department_id: Department ID
-            name: Updated name
-            description: Updated description
-
-        Returns:
-            Updated department
-        """
-        payload = {}
-        if name:
-            payload["name"] = name
-        if description:
-            payload["description"] = description
-        return await make_request("PUT", f"/departments/{department_id}", json_data=payload)
-
-    @mcp.tool()
-    async def delete_department(department_id: int) -> dict[str, Any]:
-        """
-        Delete a department.
-
-        DELETE /departments/{id}
-
-        Args:
-            department_id: Department ID
-
-        Returns:
-            Confirmation of deletion
-        """
-        return await make_request("DELETE", f"/departments/{department_id}")
 
     # Company Thumbnails
     @mcp.tool()
@@ -914,7 +636,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
 
 
 # =============================================================================
-# CONTACTS TOOLSET (18 tools)
+# CONTACTS TOOLSET (28 tools)
 # =============================================================================
 
 def register_contacts_tools(mcp: FastMCP, make_request):
@@ -922,20 +644,29 @@ def register_contacts_tools(mcp: FastMCP, make_request):
 
     # Main Contact Operations
     @mcp.tool()
-    async def list_contacts(per_page: int = 25, page: int = 1) -> dict[str, Any]:
+    async def list_contacts(
+        per_page: int = 10,
+        page: int = 1,
+        fields: Optional[str] = None
+    ) -> dict[str, Any]:
         """
-        List all contacts with pagination.
+        List contacts with pagination (returns SUMMARY by default).
+        Use get_contact(id) for full details of a specific contact.
 
         GET /contacts
 
         Args:
-            per_page: Number of contacts per page (default: 25, max: 100)
+            per_page: Number of contacts per page (default: 10, max: 100)
             page: Page number for pagination (default: 1)
+            fields: Comma-separated fields to include, or "all" for full response
 
         Returns:
-            List of contacts with pagination metadata
+            Summary list of contacts with pagination hints
         """
-        return await make_request("GET", "/contacts", params={"per_page": per_page, "page": page})
+        raw = await make_request("GET", "/contacts", params={"per_page": per_page, "page": page})
+        if fields == "all":
+            return raw
+        return summarize_list_response(raw, "contacts", fields)
 
     @mcp.tool()
     async def get_contact(contact_id: int) -> dict[str, Any]:
@@ -1059,42 +790,53 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         return await make_request("DELETE", f"/contacts/{contact_id}")
 
     @mcp.tool()
-    async def search_contacts(query: str, per_page: int = 25) -> dict[str, Any]:
+    async def search_contacts(query: str, per_page: int = 10, fields: Optional[str] = None) -> dict[str, Any]:
         """
-        Search contacts by name, email, or other criteria.
+        Search contacts by name, email, or other criteria (returns SUMMARY by default).
+        Use get_contact(id) for full details.
 
         GET /contacts/search
 
         Args:
             query: Search query string
-            per_page: Number of results per page (max: 100)
+            per_page: Number of results per page (default: 10)
+            fields: Comma-separated fields to include, or "all" for full response
 
         Returns:
-            List of matching contacts
+            Summary list of matching contacts
         """
-        return await make_request("GET", "/contacts/search", params={"q": query, "per_page": per_page})
+        raw = await make_request("GET", "/contacts/search", params={"q": query, "per_page": per_page})
+        if fields == "all":
+            return raw
+        return summarize_list_response(raw, "contacts", fields)
 
     @mcp.tool()
     async def filter_contacts(
         filters: dict[str, Any],
-        per_page: int = 25,
-        page: int = 1
+        per_page: int = 10,
+        page: int = 1,
+        fields: Optional[str] = None
     ) -> dict[str, Any]:
         """
-        Filter contacts using advanced criteria.
+        Filter contacts using advanced criteria (returns SUMMARY by default).
+        Use get_contact(id) for full details.
 
         POST /contacts/search
 
         Args:
             filters: Dictionary of filter criteria (e.g., {"company_id": 123, "title": "Manager"})
-            per_page: Results per page (max: 100)
+            per_page: Results per page (default: 10)
             page: Page number
+            fields: Comma-separated fields to include, or "all" for full response
 
         Returns:
-            Filtered list of contacts
+            Summary list of filtered contacts
         """
         payload = {**filters, "per_page": per_page, "page": page}
-        return await make_request("POST", "/contacts/search", json_data=payload)
+        raw = await make_request("POST", "/contacts/search", json_data=payload)
+        if fields == "all":
+            return raw
+        return summarize_list_response(raw, "contacts", fields)
 
     # Contact Sub-Resources
     @mcp.tool()
@@ -1373,7 +1115,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         """
         Replace all tags on a contact (replaces existing tags).
 
-        PUT /contacts/{id}/tags
+        POST /contacts/{id}/tags
 
         Args:
             contact_id: Contact ID
@@ -1382,14 +1124,14 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         Returns:
             Updated tag list
         """
-        return await make_request("PUT", f"/contacts/{contact_id}/tags", json_data={"tag_ids": tag_ids})
+        return await make_request("POST", f"/contacts/{contact_id}/tags", json_data={"tag_ids": tag_ids})
 
     @mcp.tool()
     async def attach_contact_tags(contact_id: int, tag_ids: list[int]) -> dict[str, Any]:
         """
         Attach additional tags to a contact (additive).
 
-        POST /contacts/{id}/tags
+        PUT /contacts/{id}/tags
 
         Args:
             contact_id: Contact ID
@@ -1398,23 +1140,23 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         Returns:
             Updated tag list
         """
-        return await make_request("POST", f"/contacts/{contact_id}/tags", json_data={"tag_ids": tag_ids})
+        return await make_request("PUT", f"/contacts/{contact_id}/tags", json_data={"tag_ids": tag_ids})
 
     @mcp.tool()
-    async def delete_contact_tags(contact_id: int, tag_ids: list[int]) -> dict[str, Any]:
+    async def delete_contact_tag(contact_id: int, tag_id: int) -> dict[str, Any]:
         """
-        Remove specific tags from a contact.
+        Remove a specific tag from a contact.
 
-        DELETE /contacts/{id}/tags
+        DELETE /contacts/{id}/tags/{tag_id}
 
         Args:
             contact_id: Contact ID
-            tag_ids: List of tag IDs to remove
+            tag_id: Tag ID to remove
 
         Returns:
-            Updated tag list
+            Deletion confirmation
         """
-        return await make_request("DELETE", f"/contacts/{contact_id}/tags", json_data={"tag_ids": tag_ids})
+        return await make_request("DELETE", f"/contacts/{contact_id}/tags/{tag_id}")
 
     # Contact Custom Fields Detail
     @mcp.tool()
@@ -1432,218 +1174,6 @@ def register_contacts_tools(mcp: FastMCP, make_request):
             Custom field value
         """
         return await make_request("GET", f"/contacts/{contact_id}/custom_fields/{field_id}")
-
-    @mcp.tool()
-    async def list_contact_custom_field_values(contact_id: int) -> dict[str, Any]:
-        """
-        List all custom field values for a contact.
-
-        GET /contacts/{id}/custom_field_values
-
-        Args:
-            contact_id: Contact ID
-
-        Returns:
-            List of custom field values
-        """
-        return await make_request("GET", f"/contacts/{contact_id}/custom_field_values")
-
-    @mcp.tool()
-    async def get_contact_custom_field_value(contact_id: int, field_id: int) -> dict[str, Any]:
-        """
-        Get a specific custom field value for a contact.
-
-        GET /contacts/{id}/custom_field_values/{field_id}
-
-        Args:
-            contact_id: Contact ID
-            field_id: Custom field ID
-
-        Returns:
-            Custom field value details
-        """
-        return await make_request("GET", f"/contacts/{contact_id}/custom_field_values/{field_id}")
-
-    # Contact Statuses
-    @mcp.tool()
-    async def list_contact_statuses() -> dict[str, Any]:
-        """
-        List all available contact statuses.
-
-        GET /contact_statuses
-
-        Returns:
-            List of contact statuses
-        """
-        return await make_request("GET", "/contact_statuses")
-
-    @mcp.tool()
-    async def get_contact_status(contact_id: int) -> dict[str, Any]:
-        """
-        Get the current status of a contact.
-
-        GET /contacts/{id}/status
-
-        Args:
-            contact_id: Contact ID
-
-        Returns:
-            Current contact status
-        """
-        return await make_request("GET", f"/contacts/{contact_id}/status")
-
-    @mcp.tool()
-    async def change_contact_status(contact_id: int, status_id: int, reason: Optional[str] = None) -> dict[str, Any]:
-        """
-        Change the status of a contact.
-
-        PUT /contacts/{id}/status
-
-        Args:
-            contact_id: Contact ID
-            status_id: New status ID
-            reason: Optional reason for change
-
-        Returns:
-            Updated contact with new status
-        """
-        payload = {"status_id": status_id}
-        if reason:
-            payload["reason"] = reason
-        return await make_request("PUT", f"/contacts/{contact_id}/status", json_data=payload)
-
-    # Contact Lists
-    @mcp.tool()
-    async def list_contact_lists(per_page: int = 25, page: int = 1) -> dict[str, Any]:
-        """
-        List all contact lists.
-
-        GET /contact_lists
-
-        Args:
-            per_page: Results per page
-            page: Page number
-
-        Returns:
-            List of contact lists
-        """
-        return await make_request("GET", "/contact_lists", params={"per_page": per_page, "page": page})
-
-    @mcp.tool()
-    async def get_contact_list(list_id: int) -> dict[str, Any]:
-        """
-        Get a specific contact list.
-
-        GET /contact_lists/{id}
-
-        Args:
-            list_id: List ID
-
-        Returns:
-            Contact list details
-        """
-        return await make_request("GET", f"/contact_lists/{list_id}")
-
-    @mcp.tool()
-    async def create_contact_list(name: str, description: Optional[str] = None) -> dict[str, Any]:
-        """
-        Create a new contact list.
-
-        POST /contact_lists
-
-        Args:
-            name: List name
-            description: List description
-
-        Returns:
-            Created contact list
-        """
-        payload = {"name": name}
-        if description:
-            payload["description"] = description
-        return await make_request("POST", "/contact_lists", json_data=payload)
-
-    @mcp.tool()
-    async def delete_contact_list(list_id: int) -> dict[str, Any]:
-        """
-        Delete a contact list.
-
-        DELETE /contact_lists/{id}
-
-        Args:
-            list_id: List ID
-
-        Returns:
-            Confirmation of deletion
-        """
-        return await make_request("DELETE", f"/contact_lists/{list_id}")
-
-    @mcp.tool()
-    async def list_contact_list_items(list_id: int, per_page: int = 25, page: int = 1) -> dict[str, Any]:
-        """
-        List all items in a contact list.
-
-        GET /contact_lists/{id}/items
-
-        Args:
-            list_id: List ID
-            per_page: Results per page
-            page: Page number
-
-        Returns:
-            List of contact list items
-        """
-        return await make_request("GET", f"/contact_lists/{list_id}/items",
-                                 params={"per_page": per_page, "page": page})
-
-    @mcp.tool()
-    async def get_contact_list_item(list_id: int, item_id: int) -> dict[str, Any]:
-        """
-        Get a specific contact list item.
-
-        GET /contact_lists/{list_id}/items/{item_id}
-
-        Args:
-            list_id: List ID
-            item_id: Item ID
-
-        Returns:
-            Contact list item details
-        """
-        return await make_request("GET", f"/contact_lists/{list_id}/items/{item_id}")
-
-    @mcp.tool()
-    async def create_contact_list_items(list_id: int, contact_ids: list[int]) -> dict[str, Any]:
-        """
-        Add contacts to a list.
-
-        POST /contact_lists/{id}/items
-
-        Args:
-            list_id: List ID
-            contact_ids: List of contact IDs to add
-
-        Returns:
-            Created list items
-        """
-        return await make_request("POST", f"/contact_lists/{list_id}/items",
-                                 json_data={"contact_ids": contact_ids})
-
-    @mcp.tool()
-    async def delete_contact_list_item(list_id: int, item_id: int) -> dict[str, Any]:
-        """
-        Remove a contact from a list.
-
-        DELETE /contact_lists/{list_id}/items/{item_id}
-
-        Args:
-            list_id: List ID
-            item_id: Item ID
-
-        Returns:
-            Confirmation of deletion
-        """
-        return await make_request("DELETE", f"/contact_lists/{list_id}/items/{item_id}")
 
     # Contact Thumbnails
     @mcp.tool()
@@ -1872,7 +1402,7 @@ def register_portals_tools(mcp: FastMCP, make_request):
         """
         Submit a job application through a portal.
 
-        POST /portals/{portal_id}/jobs/{job_id}/apply
+        POST /portals/{portal_id}/jobs/{job_id}
 
         Args:
             portal_id: Portal ID
@@ -1882,7 +1412,7 @@ def register_portals_tools(mcp: FastMCP, make_request):
         Returns:
             Created application details
         """
-        return await make_request("POST", f"/portals/{portal_id}/jobs/{job_id}/apply",
+        return await make_request("POST", f"/portals/{portal_id}/jobs/{job_id}",
                                  json_data=candidate_data)
 
     @mcp.tool()
@@ -1890,7 +1420,7 @@ def register_portals_tools(mcp: FastMCP, make_request):
         """
         Publish a job posting to a portal.
 
-        POST /portals/{portal_id}/jobs/{job_id}/publish
+        PUT /portals/{portal_id}/jobs/{job_id}
 
         Args:
             portal_id: Portal ID
@@ -1899,14 +1429,14 @@ def register_portals_tools(mcp: FastMCP, make_request):
         Returns:
             Publishing confirmation
         """
-        return await make_request("POST", f"/portals/{portal_id}/jobs/{job_id}/publish")
+        return await make_request("PUT", f"/portals/{portal_id}/jobs/{job_id}")
 
     @mcp.tool()
     async def unpublish_job_from_portal(portal_id: int, job_id: int) -> dict[str, Any]:
         """
         Remove a job posting from a portal.
 
-        DELETE /portals/{portal_id}/jobs/{job_id}/publish
+        DELETE /portals/{portal_id}/jobs/{job_id}
 
         Args:
             portal_id: Portal ID
@@ -1915,7 +1445,7 @@ def register_portals_tools(mcp: FastMCP, make_request):
         Returns:
             Unpublishing confirmation
         """
-        return await make_request("DELETE", f"/portals/{portal_id}/jobs/{job_id}/publish")
+        return await make_request("DELETE", f"/portals/{portal_id}/jobs/{job_id}")
 
     @mcp.tool()
     async def get_portal_registration(portal_id: int) -> dict[str, Any]:
@@ -2046,13 +1576,13 @@ def register_all_recruiting_toolsets(mcp: FastMCP, make_request):
     Register all recruiting toolsets with the MCP server.
 
     This includes:
-    - Companies (18 tools)
-    - Contacts (18 tools)
+    - Companies (30 tools)
+    - Contacts (28 tools)
     - Activities (6 tools)
     - Portals (8 tools)
     - Work History (3 tools)
 
-    Total: 53 tools
+    Total: 75 tools
 
     Args:
         mcp: FastMCP server instance
