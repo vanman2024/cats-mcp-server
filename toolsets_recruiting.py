@@ -186,7 +186,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         Returns:
             Summary list of matching companies
         """
-        raw = await make_request("GET", "/companies/search", params={"q": query, "per_page": per_page})
+        raw = await make_request("GET", "/companies/search", params={"query": query, "per_page": per_page})
         if fields == "all":
             return raw
         return summarize_list_response(raw, "companies", fields)
@@ -805,7 +805,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         Returns:
             Summary list of matching contacts
         """
-        raw = await make_request("GET", "/contacts/search", params={"q": query, "per_page": per_page})
+        raw = await make_request("GET", "/contacts/search", params={"query": query, "per_page": per_page})
         if fields == "all":
             return raw
         return summarize_list_response(raw, "contacts", fields)
@@ -1312,7 +1312,7 @@ def register_activities_tools(mcp: FastMCP, make_request):
         Returns:
             List of matching activities
         """
-        return await make_request("GET", "/activities/search", params={"q": query, "per_page": per_page})
+        return await make_request("GET", "/activities/search", params={"query": query, "per_page": per_page})
 
     @mcp.tool()
     async def filter_activities(
