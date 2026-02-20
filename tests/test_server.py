@@ -6,6 +6,7 @@ Run with: pytest tests/test_server.py -v
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from fastmcp.server.middleware.response_limiting import ResponseLimitingMiddleware
 
 
 def test_server_imports():
@@ -127,3 +128,19 @@ def test_cats_api_error_is_exception():
     error = server.CATSAPIError("test error")
     assert isinstance(error, Exception)
     assert str(error) == "test error"
+
+
+def test_server_has_response_limiting_middleware():
+    """Test that ResponseLimitingMiddleware is configured on the server"""
+    import server
+    limiting = [m for m in server.mcp.middleware if isinstance(m, ResponseLimitingMiddleware)]
+    assert len(limiting) == 1, "Expected exactly one ResponseLimitingMiddleware"
+    assert limiting[0].max_size == 100_000
+
+
+def test_server_all_tools_has_response_limiting_middleware():
+    """Test that ResponseLimitingMiddleware is configured on server_all_tools"""
+    import server_all_tools
+    limiting = [m for m in server_all_tools.mcp.middleware if isinstance(m, ResponseLimitingMiddleware)]
+    assert len(limiting) == 1, "Expected exactly one ResponseLimitingMiddleware"
+    assert limiting[0].max_size == 100_000

@@ -7,6 +7,7 @@ from typing import Any, Optional
 import httpx
 from dotenv import load_dotenv
 from fastmcp import FastMCP
+from fastmcp.server.middleware.response_limiting import ResponseLimitingMiddleware
 
 load_dotenv()
 
@@ -15,6 +16,7 @@ CATS_API_BASE_URL = os.getenv("CATS_API_BASE_URL", "https://api.catsone.com/v3")
 CATS_API_KEY = os.getenv("CATS_API_KEY", "")
 
 mcp = FastMCP("CATS API v3")
+mcp.add_middleware(ResponseLimitingMiddleware(max_size=100_000))
 
 class CATSAPIError(Exception):
     """CATS API error"""
