@@ -173,7 +173,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
         Returns:
             dict: Summary list of matching candidates with pagination hints
         """
-        raw = await make_request("GET", "/candidates/search", params={"q": query, "per_page": per_page})
+        raw = await make_request("GET", "/candidates/search", params={"query": query, "per_page": per_page})
         if fields == "all":
             return raw
         return summarize_list_response(raw, "candidates", fields)
@@ -1084,7 +1084,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
         Returns:
             dict: Summary list of matching jobs with pagination hints
         """
-        raw = await make_request("GET", "/jobs/search", params={"q": query, "per_page": per_page})
+        raw = await make_request("GET", "/jobs/search", params={"query": query, "per_page": per_page})
         if fields == "all":
             return raw
         return summarize_list_response(raw, "jobs", fields)
