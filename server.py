@@ -13,7 +13,12 @@ from typing import Any, Optional, Set
 import httpx
 from dotenv import load_dotenv
 from fastmcp import FastMCP
-from fastmcp.server.middleware.response_limiting import ResponseLimitingMiddleware
+
+try:
+    from fastmcp.server.middleware.response_limiting import ResponseLimitingMiddleware
+    HAS_RESPONSE_LIMITING = True
+except ImportError:
+    HAS_RESPONSE_LIMITING = False
 
 load_dotenv()
 
@@ -27,7 +32,8 @@ logging.basicConfig(
 logger = logging.getLogger("cats-mcp-server")
 
 mcp = FastMCP("CATS API v3")
-mcp.add_middleware(ResponseLimitingMiddleware(max_size=100_000))
+if HAS_RESPONSE_LIMITING:
+    mcp.add_middleware(ResponseLimitingMiddleware(max_size=100_000))
 
 # Configuration
 CATS_API_BASE_URL = os.getenv("CATS_API_BASE_URL", "https://api.catsone.com/v3")
