@@ -79,6 +79,11 @@ async def make_request(
                 
                 # Raise for other HTTP errors
                 response.raise_for_status()
+
+                # Handle empty responses (204 No Content, etc.)
+                if response.status_code == 204 or not response.content:
+                    return {"status": "success", "status_code": response.status_code}
+
                 return response.json()
                 
         except httpx.TimeoutException as e:

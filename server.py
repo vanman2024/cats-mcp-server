@@ -86,6 +86,10 @@ async def make_request(
                 remaining = response.headers["X-Rate-Limit-Remaining"]
                 logger.debug(f"Rate limit remaining: {remaining}")
 
+            # Handle empty responses (204 No Content, etc.)
+            if response.status_code == 204 or not response.content:
+                return {"status": "success", "status_code": response.status_code}
+
             return response.json()
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error {e.response.status_code} for {endpoint}: {e.response.text}")

@@ -193,7 +193,9 @@ def register_companies_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def filter_companies(
-        filters: dict[str, Any],
+        filter_field: str,
+        filter_type: str,
+        filter_value: Any,
         per_page: int = 10,
         page: int = 1,
         fields: Optional[str] = None
@@ -205,7 +207,9 @@ def register_companies_tools(mcp: FastMCP, make_request):
         POST /companies/search
 
         Args:
-            filters: Dictionary of filter criteria (e.g., {"city": "San Francisco", "state": "CA"})
+            filter_field: Field to filter on (e.g., "city", "state", "name")
+            filter_type: Filter operator ("contains", "exactly", "is_empty", "greater_than", "less_than", "between")
+            filter_value: Value to filter by
             per_page: Results per page (default: 10)
             page: Page number
             fields: Comma-separated fields to include, or "all" for full response
@@ -213,8 +217,14 @@ def register_companies_tools(mcp: FastMCP, make_request):
         Returns:
             Summary list of filtered companies
         """
-        payload = {**filters, "per_page": per_page, "page": page}
-        raw = await make_request("POST", "/companies/search", json_data=payload)
+        payload = {
+            "field": filter_field,
+            "filter": filter_type,
+            "value": filter_value
+        }
+        raw = await make_request("POST", "/companies/search",
+                                params={"per_page": per_page, "page": page},
+                                json_data=payload)
         if fields == "all":
             return raw
         return summarize_list_response(raw, "companies", fields)
@@ -812,7 +822,9 @@ def register_contacts_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def filter_contacts(
-        filters: dict[str, Any],
+        filter_field: str,
+        filter_type: str,
+        filter_value: Any,
         per_page: int = 10,
         page: int = 1,
         fields: Optional[str] = None
@@ -824,7 +836,9 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         POST /contacts/search
 
         Args:
-            filters: Dictionary of filter criteria (e.g., {"company_id": 123, "title": "Manager"})
+            filter_field: Field to filter on (e.g., "company_id", "title", "first_name")
+            filter_type: Filter operator ("contains", "exactly", "is_empty", "greater_than", "less_than", "between")
+            filter_value: Value to filter by
             per_page: Results per page (default: 10)
             page: Page number
             fields: Comma-separated fields to include, or "all" for full response
@@ -832,8 +846,14 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         Returns:
             Summary list of filtered contacts
         """
-        payload = {**filters, "per_page": per_page, "page": page}
-        raw = await make_request("POST", "/contacts/search", json_data=payload)
+        payload = {
+            "field": filter_field,
+            "filter": filter_type,
+            "value": filter_value
+        }
+        raw = await make_request("POST", "/contacts/search",
+                                params={"per_page": per_page, "page": page},
+                                json_data=payload)
         if fields == "all":
             return raw
         return summarize_list_response(raw, "contacts", fields)
@@ -1316,7 +1336,9 @@ def register_activities_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def filter_activities(
-        filters: dict[str, Any],
+        filter_field: str,
+        filter_type: str,
+        filter_value: Any,
         per_page: int = 25,
         page: int = 1
     ) -> dict[str, Any]:
@@ -1326,15 +1348,23 @@ def register_activities_tools(mcp: FastMCP, make_request):
         POST /activities/search
 
         Args:
-            filters: Dictionary of filter criteria (e.g., {"type": "meeting", "completed": false})
+            filter_field: Field to filter on (e.g., "type", "subject", "date")
+            filter_type: Filter operator ("contains", "exactly", "is_empty", "greater_than", "less_than", "between")
+            filter_value: Value to filter by
             per_page: Results per page (max: 100)
             page: Page number
 
         Returns:
             Filtered list of activities
         """
-        payload = {**filters, "per_page": per_page, "page": page}
-        return await make_request("POST", "/activities/search", json_data=payload)
+        payload = {
+            "field": filter_field,
+            "filter": filter_type,
+            "value": filter_value
+        }
+        return await make_request("POST", "/activities/search",
+                                 params={"per_page": per_page, "page": page},
+                                 json_data=payload)
 
 
 # =============================================================================
