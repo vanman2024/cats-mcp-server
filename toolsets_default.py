@@ -181,8 +181,9 @@ def register_candidates_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def filter_candidates(
-        status: Optional[str] = None,
-        job_id: Optional[int] = None,
+        filter_field: str,
+        filter_type: str,
+        filter_value: Any,
         per_page: int = 10,
         page: int = 1,
         fields: Optional[str] = None
@@ -193,8 +194,9 @@ def register_candidates_tools(mcp: FastMCP, make_request):
         Wraps: POST /candidates/search
 
         Args:
-            status: Filter by candidate status (optional)
-            job_id: Filter by specific job ID (optional)
+            filter_field: Field to filter on (e.g., "status_id", "is_hot")
+            filter_type: Filter operator ("contains", "exactly", "is_empty", "greater_than", "less_than", "between")
+            filter_value: Value to filter by
             per_page: Number of results per page (default: 10)
             page: Page number to retrieve (default: 1)
             fields: Comma-separated fields to include, or "all" for full response
@@ -203,15 +205,14 @@ def register_candidates_tools(mcp: FastMCP, make_request):
             dict: Summary list of filtered candidates with pagination hints
         """
         payload = {
-            "per_page": per_page,
-            "page": page
+            "field": filter_field,
+            "filter": filter_type,
+            "value": filter_value
         }
-        if status:
-            payload["status"] = status
-        if job_id:
-            payload["job_id"] = job_id
 
-        raw = await make_request("POST", "/candidates/search", json_data=payload)
+        raw = await make_request("POST", "/candidates/search",
+                                params={"per_page": per_page, "page": page},
+                                json_data=payload)
         if fields == "all":
             return raw
         return summarize_list_response(raw, "candidates", fields)
@@ -1092,9 +1093,9 @@ def register_jobs_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def filter_jobs(
-        status: Optional[str] = None,
-        department: Optional[str] = None,
-        location: Optional[str] = None,
+        filter_field: str,
+        filter_type: str,
+        filter_value: Any,
         per_page: int = 10,
         page: int = 1,
         fields: Optional[str] = None
@@ -1105,9 +1106,9 @@ def register_jobs_tools(mcp: FastMCP, make_request):
         Wraps: POST /jobs/search
 
         Args:
-            status: Filter by job status (optional)
-            department: Filter by department (optional)
-            location: Filter by location (optional)
+            filter_field: Field to filter on (e.g., "status_id", "department", "location")
+            filter_type: Filter operator ("contains", "exactly", "is_empty", "greater_than", "less_than", "between")
+            filter_value: Value to filter by
             per_page: Number of results per page (default: 10)
             page: Page number to retrieve (default: 1)
             fields: Comma-separated fields to include, or "all" for full response
@@ -1116,17 +1117,14 @@ def register_jobs_tools(mcp: FastMCP, make_request):
             dict: Summary list of filtered jobs with pagination hints
         """
         payload = {
-            "per_page": per_page,
-            "page": page
+            "field": filter_field,
+            "filter": filter_type,
+            "value": filter_value
         }
-        if status:
-            payload["status"] = status
-        if department:
-            payload["department"] = department
-        if location:
-            payload["location"] = location
 
-        raw = await make_request("POST", "/jobs/search", json_data=payload)
+        raw = await make_request("POST", "/jobs/search",
+                                params={"per_page": per_page, "page": page},
+                                json_data=payload)
         if fields == "all":
             return raw
         return summarize_list_response(raw, "jobs", fields)
@@ -1151,39 +1149,10 @@ def register_jobs_tools(mcp: FastMCP, make_request):
                                  params={"per_page": per_page})
 
 
-    @mcp.tool()
-    async def list_job_candidates(job_id: int | str, per_page: int = 25) -> dict[str, Any]:
-        """
-        List all candidates who applied to a job.
-        Wraps: GET /jobs/{id}/candidates
+    # NOTE: list_job_candidates removed - CATS API v3 has no GET /jobs/{id}/candidates.
+    # Use list_job_pipelines(job_id) to get candidates submitted to a job.
 
-        Args:
-            job_id: The unique identifier of the job
-            per_page: Number of results per page (default: 25)
-
-        Returns:
-            dict: List of candidates for the job
-        """
-        return await make_request("GET", f"/jobs/{job_id}/candidates",
-                                 params={"per_page": per_page})
-
-
-    @mcp.tool()
-    async def list_job_activities(job_id: int | str, per_page: int = 25) -> dict[str, Any]:
-        """
-        List all activities for a job.
-        Wraps: GET /jobs/{id}/activities
-
-        Args:
-            job_id: The unique identifier of the job
-            per_page: Number of results per page (default: 25)
-
-        Returns:
-            dict: List of job activities
-        """
-        return await make_request("GET", f"/jobs/{job_id}/activities",
-                                 params={"per_page": per_page})
-
+    # NOTE: list_job_activities removed - CATS API v3 has no GET /jobs/{id}/activities.
 
     @mcp.tool()
     async def list_job_attachments(job_id: int | str, per_page: int = 25) -> dict[str, Any]:
@@ -1233,21 +1202,8 @@ def register_jobs_tools(mcp: FastMCP, make_request):
         return await make_request("GET", f"/jobs/{job_id}/custom_fields/{field_id}")
 
 
-    @mcp.tool()
-    async def update_job_custom_fields(job_id: int | str, fields: dict[str, Any]) -> dict[str, Any]:
-        """
-        Update custom fields for a job.
-        Wraps: PUT /jobs/{id}/custom_fields
-
-        Args:
-            job_id: The unique identifier of the job
-            fields: Dictionary of custom field key-value pairs
-
-        Returns:
-            dict: Updated custom fields
-        """
-        return await make_request("PUT", f"/jobs/{job_id}/custom_fields", json_data=fields)
-
+    # NOTE: update_job_custom_fields (bulk) removed - CATS API v3 has no PUT /jobs/{id}/custom_fields.
+    # Use update_job_custom_field(job_id, field_id, value) for individual field updates.
 
     @mcp.tool()
     async def update_job_custom_field(job_id: int | str, field_id: int | str, value: Any) -> dict[str, Any]:
@@ -1310,7 +1266,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
         Returns:
             dict: Updated job with new status
         """
-        payload = {"status_id": status_id}
+        payload = {"status_id": int(status_id)}
         if reason:
             payload["reason"] = reason
         return await make_request("POST", f"/jobs/{job_id}/status", json_data=payload)
@@ -1620,31 +1576,29 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def create_pipeline(
-        name: str,
-        job_id: Optional[int] = None,
-        candidate_id: Optional[int] = None,
+        candidate_id: int,
+        job_id: int,
+        rating: Optional[int] = None,
         status_id: Optional[int] = None
     ) -> dict[str, Any]:
         """
-        Create a new pipeline entry (candidate in job pipeline).
+        Create a new pipeline entry (submit candidate to job).
         Wraps: POST /pipelines
 
         Args:
-            name: Pipeline name
-            job_id: Associated job ID (optional)
-            candidate_id: Associated candidate ID (optional)
-            status_id: Initial status/stage ID (optional)
+            candidate_id: The candidate ID to submit
+            job_id: The job ID to submit candidate to
+            rating: Optional rating (1-5)
+            status_id: Initial pipeline status/stage ID (optional)
 
         Returns:
             dict: Created pipeline object
         """
-        payload = {"name": name}
-        if job_id:
-            payload["job_id"] = job_id
-        if candidate_id:
-            payload["candidate_id"] = candidate_id
-        if status_id:
-            payload["status_id"] = status_id
+        payload = {"candidate_id": int(candidate_id), "job_id": int(job_id)}
+        if rating is not None:
+            payload["rating"] = rating
+        if status_id is not None:
+            payload["status_id"] = int(status_id)
 
         return await make_request("POST", "/pipelines", json_data=payload)
 
@@ -1693,9 +1647,9 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
 
     @mcp.tool()
     async def filter_pipelines(
-        job_id: Optional[int] = None,
-        candidate_id: Optional[int] = None,
-        status_id: Optional[int] = None,
+        filter_field: str,
+        filter_type: str,
+        filter_value: Any,
         per_page: int = 25,
         page: int = 1
     ) -> dict[str, Any]:
@@ -1704,24 +1658,24 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
         Wraps: POST /pipelines/search
 
         Args:
-            job_id: Filter by job ID (optional)
-            candidate_id: Filter by candidate ID (optional)
-            status_id: Filter by status/stage ID (optional)
+            filter_field: Field to filter on (e.g., "job_id", "candidate_id", "status_id")
+            filter_type: Filter operator ("exactly", "contains", "is_empty", "greater_than", "less_than", "between")
+            filter_value: Value to filter by
             per_page: Number of results per page (default: 25)
             page: Page number to retrieve (default: 1)
 
         Returns:
             dict: List of filtered pipelines
         """
-        payload = {"per_page": per_page, "page": page}
-        if job_id:
-            payload["job_id"] = job_id
-        if candidate_id:
-            payload["candidate_id"] = candidate_id
-        if status_id:
-            payload["status_id"] = status_id
+        payload = {
+            "field": filter_field,
+            "filter": filter_type,
+            "value": filter_value
+        }
 
-        return await make_request("POST", "/pipelines/search", json_data=payload)
+        return await make_request("POST", "/pipelines/search",
+                                 params={"per_page": per_page, "page": page},
+                                 json_data=payload)
 
 
     @mcp.tool()
@@ -1815,7 +1769,7 @@ def register_pipelines_tools(mcp: FastMCP, make_request):
         Returns:
             dict: Updated pipeline with new status
         """
-        payload = {"status_id": status_id}
+        payload = {"status_id": int(status_id)}
         if notes:
             payload["notes"] = notes
 

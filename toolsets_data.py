@@ -168,10 +168,9 @@ def register_webhooks_tools(mcp: FastMCP, make_request: Callable = None) -> None
 
     @mcp.tool()
     async def create_webhook(
-        url: str,
+        target_url: str,
         events: list[str],
-        active: bool = True,
-        description: Optional[str] = None
+        signing_key: str
     ) -> dict[str, Any]:
         """
         Create a new webhook subscription.
@@ -185,36 +184,25 @@ def register_webhooks_tools(mcp: FastMCP, make_request: Callable = None) -> None
         - X-CATS-Delivery: Unique delivery ID
 
         Args:
-            url: Target URL for webhook POST requests (must be HTTPS in production)
-            events: List of event types to subscribe to (e.g., ["candidate.created", "job.updated"])
-            active: Whether webhook should be active immediately (default: True)
-            description: Optional description for the webhook
+            target_url: Target URL for webhook POST requests (must be HTTPS in production)
+            events: List of event types to subscribe to.
+                    Available: candidate.created, candidate.updated, candidate.deleted,
+                    job.created, job.updated, job.deleted, job.status_changed,
+                    pipeline.created, pipeline.deleted, pipeline.status_changed,
+                    contact.created, contact.updated, contact.deleted,
+                    company.created, company.updated, company.deleted,
+                    activity.created, activity.updated, activity.deleted,
+                    user.created, user.updated, user.deleted
+            signing_key: HMAC-SHA256 key for webhook signature verification
 
         Returns:
-            dict containing:
-            - id: New webhook ID
-            - url: Configured URL
-            - events: Subscribed events
-            - active: Active status
-            - signing_key: Generated HMAC key for signature verification (save this!)
-            - created_at: Creation timestamp
-
-        Example:
-            >>> webhook = await create_webhook(
-            ...     url="https://myapp.com/webhooks/cats",
-            ...     events=["candidate.created", "candidate.updated"],
-            ...     description="Sync candidates to CRM"
-            ... )
-            >>> print(f"Webhook created! Save the signing key: {webhook['signing_key']}")
-            >>> # Store the signing key securely for signature verification
+            dict: Created webhook object with ID
         """
         payload = {
-            "url": url,
+            "target_url": target_url,
             "events": events,
-            "active": active
         }
-        if description:
-            payload["description"] = description
+        payload["secret"] = signing_key  # noqa: S105
         return await make_request("POST", "/webhooks", json_data=payload)
 
     @mcp.tool()
