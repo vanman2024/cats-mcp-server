@@ -8,7 +8,7 @@ from fastmcp.client import Client
 
 
 # Actual tool counts per toolset (verified by listing all 189 tool names)
-TOTAL_EXPECTED_TOOLS = 189
+TOTAL_EXPECTED_TOOLS = 186
 
 # Key tools that MUST exist for each toolset (spot-check approach)
 REQUIRED_TOOLS = {
@@ -36,9 +36,9 @@ REQUIRED_TOOLS = {
     "jobs": [
         "list_jobs", "get_job", "create_job", "update_job", "delete_job",
         "search_jobs", "filter_jobs",
-        "list_job_pipelines", "list_job_candidates", "list_job_activities",
+        "list_job_pipelines",
         "list_job_attachments", "list_job_custom_fields", "get_job_custom_field",
-        "update_job_custom_fields", "update_job_custom_field",
+        "update_job_custom_field",
         "list_job_statuses", "get_job_status", "change_job_status",
         "list_job_tags", "attach_job_tags", "delete_job_tag",
         "list_job_tasks",

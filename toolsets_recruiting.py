@@ -470,7 +470,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         Returns:
             Updated tag list
         """
-        return await make_request("POST", f"/companies/{company_id}/tags", json_data={"tag_ids": tag_ids})
+        return await make_request("POST", f"/companies/{company_id}/tags", json_data={"tags": [{"id": t} for t in tag_ids]})
 
     @mcp.tool()
     async def attach_company_tags(company_id: int | str, tag_ids: list[int]) -> dict[str, Any]:
@@ -486,7 +486,7 @@ def register_companies_tools(mcp: FastMCP, make_request):
         Returns:
             Updated tag list
         """
-        return await make_request("PUT", f"/companies/{company_id}/tags", json_data={"tag_ids": tag_ids})
+        return await make_request("PUT", f"/companies/{company_id}/tags", json_data={"tags": [{"id": t} for t in tag_ids]})
 
     @mcp.tool()
     async def delete_company_tag(company_id: int | str, tag_id: int | str) -> dict[str, Any]:
@@ -1144,7 +1144,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         Returns:
             Updated tag list
         """
-        return await make_request("POST", f"/contacts/{contact_id}/tags", json_data={"tag_ids": tag_ids})
+        return await make_request("POST", f"/contacts/{contact_id}/tags", json_data={"tags": [{"id": t} for t in tag_ids]})
 
     @mcp.tool()
     async def attach_contact_tags(contact_id: int | str, tag_ids: list[int]) -> dict[str, Any]:
@@ -1160,7 +1160,7 @@ def register_contacts_tools(mcp: FastMCP, make_request):
         Returns:
             Updated tag list
         """
-        return await make_request("PUT", f"/contacts/{contact_id}/tags", json_data={"tag_ids": tag_ids})
+        return await make_request("PUT", f"/contacts/{contact_id}/tags", json_data={"tags": [{"id": t} for t in tag_ids]})
 
     @mcp.tool()
     async def delete_contact_tag(contact_id: int | str, tag_id: int | str) -> dict[str, Any]:

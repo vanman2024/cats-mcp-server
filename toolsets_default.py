@@ -594,7 +594,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
         Returns:
             dict: Updated list of candidate tags
         """
-        payload = {"tag_ids": tag_ids}
+        payload = {"tags": [{"id": tid} for tid in tag_ids]}
         return await make_request("POST", f"/candidates/{candidate_id}/tags", json_data=payload)
 
 
@@ -611,7 +611,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
         Returns:
             dict: Updated list of candidate tags
         """
-        payload = {"tag_ids": tag_ids}
+        payload = {"tags": [{"id": tid} for tid in tag_ids]}
         return await make_request("PUT", f"/candidates/{candidate_id}/tags", json_data=payload)
 
 
@@ -872,7 +872,7 @@ def register_candidates_tools(mcp: FastMCP, make_request):
         Returns:
             dict: Created list items
         """
-        payload = {"candidate_ids": candidate_ids}
+        payload = {"items": [{"candidate_id": cid} for cid in candidate_ids]}
         return await make_request("POST", f"/candidates/lists/{list_id}/items", json_data=payload)
 
 
@@ -1300,7 +1300,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
         Returns:
             dict: Updated list of job tags
         """
-        payload = {"tag_ids": tag_ids}
+        payload = {"tags": [{"id": tid} for tid in tag_ids]}
         return await make_request("PUT", f"/jobs/{job_id}/tags", json_data=payload)
 
 
@@ -1466,7 +1466,7 @@ def register_jobs_tools(mcp: FastMCP, make_request):
         Returns:
             dict: Confirmation of jobs added
         """
-        payload = {"job_ids": job_ids}
+        payload = {"items": [{"job_id": jid} for jid in job_ids]}
         return await make_request("POST", f"/jobs/lists/{list_id}/items", json_data=payload)
 
 
