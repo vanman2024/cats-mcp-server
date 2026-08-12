@@ -4,26 +4,47 @@ version = "0.1.0"
 description = "FastMCP server for CATS (Complete Applicant Tracking System) API wrapper"
 readme = "README.md"
 requires-python = ">=3.10"
+# Every dependency is pinned exactly.
+#
+# fastmcp 4 is a prerelease, so resolution must allow prereleases (see
+# [tool.uv] below). That permission is global in uv, which means a loose
+# specifier anywhere lets *that* package resolve to a prerelease too — an
+# unpinned `httpx` resolved to 1.0.dev3 and `pydantic` to 2.14.0b1 during
+# testing. Exact pins are what keeps the prerelease surface to fastmcp alone.
+#
+# FastMCP 4 uses httpx2, not httpx. Do not add httpx back.
 dependencies = [
-    "fastmcp>=3.0.0",
-    "httpx>=0.27.0",
-    "pydantic>=2.0.0",
-    "python-dotenv>=1.0.0",
+    "fastmcp==4.0.0b2",
+    "httpx2==2.10.0",
+    "pydantic==2.13.4",
+    "python-dotenv==1.2.2",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "ruff>=0.3.0",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.16.2",
 ]
+
+# CATS_DISCOVERY_MODE=code requires this extra. Code Mode is not bundled with
+# the base install — `fastmcp.server.transforms.code_mode` does not exist until
+# it is present. It is experimental; the server raises a clear error at startup
+# if the mode is selected without it rather than failing on first tool call.
+code-mode = [
+    "fastmcp[code-mode]==4.0.0b2",
+]
+
+[tool.uv]
+# Required for fastmcp==4.0.0b2. Scoped by the exact pins above.
+prerelease = "allow"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+packages = ["src/cats_mcp"]
 
 [tool.ruff]
 line-length = 100
@@ -33,6 +54,22 @@ target-version = "py310"
 select = ["E", "F", "I", "N", "W", "UP"]
 ignore = []
 
+[tool.ruff.lint.per-file-ignores]
+# The spec modules are declarative data, not logic. Their long lines are tool
+# descriptions written for agent discovery - prose that BM25 indexes. Wrapping
+# it into implicit string concatenation would hurt readability without changing
+# what ships, since the value is identical either way.
+"src/cats_mcp/registry/specs/*.py" = ["E501"]
+
+[tool.ruff.lint.pep8-naming]
+# CATSAPIError is the pre-refactor name and is part of the public surface that
+# existing callers may catch. Renaming it to satisfy N818 would be a breaking
+# change for no functional gain.
+ignore-names = ["CATSAPIError"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: requires a live CATS API and a real credential",
+]

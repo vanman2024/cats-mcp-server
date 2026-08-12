@@ -2,17 +2,17 @@
   "$schema": "https://gofastmcp.com/public/schemas/fastmcp.json/v1.json",
   "source": {
     "type": "filesystem",
-    "path": "server_all_tools.py",
+    "path": "src/cats_mcp/app.py",
     "entrypoint": "mcp"
   },
   "environment": {
     "type": "uv",
     "python": ">=3.10",
     "dependencies": [
-      "fastmcp>=3.0.0",
-      "httpx>=0.27.0",
-      "pydantic>=2.0.0",
-      "python-dotenv>=1.0.0"
+      "fastmcp==4.0.0b2",
+      "httpx2==2.10.0",
+      "pydantic==2.13.4",
+      "python-dotenv==1.2.2"
     ]
   },
   "deployment": {
@@ -24,7 +24,6 @@
     "env": {
       "CATS_API_BASE_URL": "https://api.catsone.com/v3",
       "CATS_API_KEY": "${CATS_API_KEY}",
-      "CATS_TOOLSETS": "${CATS_TOOLSETS:-candidates,jobs,pipelines}",
       "CATS_TRANSPORT": "http",
       "CATS_HOST": "0.0.0.0",
       "CATS_PORT": "3000"

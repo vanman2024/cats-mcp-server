@@ -1,152 +1,366 @@
-"""
-Tests for CATS MCP Server (server.py)
+"""End-to-end server tests through a real MCP client.
 
-Run with: pytest tests/test_server.py -v
+Follows FastMCP's documented testing guidance: an in-memory `Client(server)`
+exercises the full request path - validation, transforms, auth, serialisation -
+in one process, and `asgi_client` runs the real HTTP stack without a socket.
+
+Per that guidance, Clients are opened *inside* tests rather than in fixtures,
+which avoids event-loop lifetime problems.
+
+This file replaces the previous `tests/test_server.py`, which imported the
+module-level toolset registration and could not exercise a running server.
 """
 
+from __future__ import annotations
+
+import httpx2
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-try:
-    from fastmcp.server.middleware.response_limiting import ResponseLimitingMiddleware
-    HAS_RESPONSE_LIMITING = True
-except ImportError:
-    HAS_RESPONSE_LIMITING = False
+from fastmcp import Client
+
+from cats_mcp.config import AuthMode, DiscoveryMode, Settings, Transport
+from cats_mcp.credentials.base import CATSCredential, CredentialProvider
+from cats_mcp.discovery.profiles import PINNED_TOOLS
+from cats_mcp.http.client import CATSClient
+from cats_mcp.registry.catalog import REGISTRY
+from cats_mcp.server import create_server
 
 
-def test_server_imports():
-    """Test that server module can be imported and mcp instance exists"""
-    import server
-    assert server.mcp is not None
-    assert server.mcp.name == "CATS API v3"
+class StubCredentials(CredentialProvider):
+    async def resolve(self, context=None) -> CATSCredential:
+        return CATSCredential(
+            api_key="test-key", base_url="https://api.catsone.com/v3", account_label="test"
+        )
+
+    def describe(self) -> str:
+        return "stub"
 
 
-def test_server_has_required_constants():
-    """Test that server has required configuration constants"""
-    import server
-    assert hasattr(server, 'CATS_API_BASE_URL')
-    assert hasattr(server, 'CATS_API_KEY')
-    assert hasattr(server, 'mcp')
-    assert hasattr(server, 'CATSAPIError')
-    assert hasattr(server, 'make_request')
-    assert hasattr(server, 'load_toolsets')
-    assert hasattr(server, 'DEFAULT_TOOLSETS')
-    assert hasattr(server, 'ALL_TOOLSETS')
+def build_server(handler=None, **overrides):
+    """A server wired to a mock CATS transport, never touching the network."""
+    settings = Settings(api_key="test-key", **overrides)
+    handler = handler or (lambda request: httpx2.Response(200, json={}))
+    client = CATSClient(settings, StubCredentials(), transport=httpx2.MockTransport(handler))
+    return create_server(settings, credential_provider=StubCredentials(), client=client)
 
 
-def test_default_toolsets_defined():
-    """Test that default toolsets list is correct"""
-    import server
-    assert 'candidates' in server.DEFAULT_TOOLSETS
-    assert 'jobs' in server.DEFAULT_TOOLSETS
-    assert 'pipelines' in server.DEFAULT_TOOLSETS
-    assert 'context' in server.DEFAULT_TOOLSETS
-    assert 'tasks' in server.DEFAULT_TOOLSETS
-    assert len(server.DEFAULT_TOOLSETS) == 5
+# --- catalog ---------------------------------------------------------------
 
 
-def test_all_toolsets_defined():
-    """Test that all toolsets are defined"""
-    import server
-    expected = [
-        'candidates', 'jobs', 'pipelines', 'context', 'tasks',
-        'companies', 'contacts', 'activities', 'portals', 'work_history',
-        'tags', 'webhooks', 'users', 'triggers', 'attachments', 'backups', 'events'
-    ]
-    assert len(server.ALL_TOOLSETS) == 17
-    for toolset in expected:
-        assert toolset in server.ALL_TOOLSETS, f"Missing toolset: {toolset}"
+#: Tools that exist outside the endpoint registry: the 5 composite read
+#: primitives plus the synthetic connection-status tool.
+NON_REGISTRY_TOOLS = 6
 
 
-@pytest.mark.asyncio
-async def test_make_request_missing_api_key():
-    """Test that make_request raises error when API key is missing"""
-    import server
-
-    with patch.object(server, 'CATS_API_KEY', ''):
-        with pytest.raises(server.CATSAPIError) as exc_info:
-            await server.make_request("GET", "/test")
-        assert "not configured" in str(exc_info.value).lower()
-
-
-@pytest.mark.asyncio
-async def test_make_request_success():
-    """Test make_request with mocked successful HTTP response"""
-    import server
-
-    # httpx response.json() is synchronous - use MagicMock not AsyncMock
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"data": [{"id": 1}]}
-    mock_response.raise_for_status = MagicMock()
-    mock_response.headers = {}
-
-    with patch.object(server, 'CATS_API_KEY', 'test-key-123'):
-        with patch('server.httpx.AsyncClient') as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.request = AsyncMock(return_value=mock_response)
-            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await server.make_request("GET", "/candidates")
-            assert result == {"data": [{"id": 1}]}
-            mock_client.request.assert_called_once()
+async def test_raw_profile_exposes_the_whole_catalog():
+    server = build_server(discovery_mode=DiscoveryMode.RAW)
+    async with Client(server) as client:
+        tools = await client.list_tools()
+    names = {t.name for t in tools}
+    assert len(names) == len(REGISTRY) + NON_REGISTRY_TOOLS, (
+        "expected every endpoint spec, the composite reads, and the status tool"
+    )
+    assert "get_connection_status" in names
 
 
-@pytest.mark.asyncio
-async def test_make_request_http_error():
-    """Test make_request raises CATSAPIError on HTTP errors"""
-    import server
-    import httpx
+async def test_server_registers_tools_when_merely_imported():
+    """The previous server registered zero tools unless run as __main__.
 
-    mock_response = AsyncMock()
-    mock_response.status_code = 404
-    mock_response.text = "Not Found"
-    mock_response.headers = {}
+    Asserted through the status tool rather than `list_tools`, because the
+    default discovery profile is `search` and therefore deliberately lists only
+    the meta-tools. Registration and visibility are different things.
+    """
+    from cats_mcp import app
 
-    with patch.object(server, 'CATS_API_KEY', 'test-key-123'):
-        with patch('server.httpx.AsyncClient') as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.request = AsyncMock(
-                side_effect=httpx.HTTPStatusError(
-                    "Not Found",
-                    request=httpx.Request("GET", "https://api.catsone.com/v3/test"),
-                    response=httpx.Response(404, text="Not Found")
-                )
-            )
-            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            with pytest.raises(server.CATSAPIError) as exc_info:
-                await server.make_request("GET", "/test")
-            assert "404" in str(exc_info.value) or "error" in str(exc_info.value).lower()
+    async with Client(app.mcp) as client:
+        result = await client.call_tool("get_connection_status", {})
+    assert result.data["tools_registered"] > 100
 
 
-def test_load_toolsets_function_exists():
-    """Test that load_toolsets function exists and is callable"""
-    import server
-    assert callable(server.load_toolsets)
+async def test_toolsets_selection_is_actually_honoured():
+    """CATS_TOOLSETS was documented but silently ignored by the deployed server."""
+    server = build_server(discovery_mode=DiscoveryMode.RAW, toolsets="tags,users")
+    async with Client(server) as client:
+        names = {t.name for t in await client.list_tools()}
+    assert "list_tags" in names
+    assert "list_candidates" not in names
+    # 2 tags + 2 users + the status tool
+    assert len(names) == 5
 
 
-def test_cats_api_error_is_exception():
-    """Test CATSAPIError is a proper exception"""
-    import server
-    error = server.CATSAPIError("test error")
-    assert isinstance(error, Exception)
-    assert str(error) == "test error"
+async def test_removed_broken_tools_are_absent():
+    server = build_server(discovery_mode=DiscoveryMode.RAW)
+    async with Client(server) as client:
+        names = {t.name for t in await client.list_tools()}
+    assert "get_me" not in names, "GET /users/current returns 404"
+    assert "authorize_user" not in names, "POST /authorization does not exist"
 
 
-@pytest.mark.skipif(not HAS_RESPONSE_LIMITING, reason="FastMCP v3 middleware not available")
-def test_server_has_response_limiting_middleware():
-    """Test that ResponseLimitingMiddleware is configured on the server"""
-    import server
-    limiting = [m for m in server.mcp.middleware if isinstance(m, ResponseLimitingMiddleware)]
-    assert len(limiting) == 1, "Expected exactly one ResponseLimitingMiddleware"
-    assert limiting[0].max_size == 100_000
+# --- discovery profiles ----------------------------------------------------
 
 
-@pytest.mark.skipif(not HAS_RESPONSE_LIMITING, reason="FastMCP v3 middleware not available")
-def test_server_all_tools_has_response_limiting_middleware():
-    """Test that ResponseLimitingMiddleware is configured on server_all_tools"""
-    import server_all_tools
-    limiting = [m for m in server_all_tools.mcp.middleware if isinstance(m, ResponseLimitingMiddleware)]
-    assert len(limiting) == 1, "Expected exactly one ResponseLimitingMiddleware"
-    assert limiting[0].max_size == 100_000
+async def test_search_profile_hides_the_catalog_behind_meta_tools():
+    server = build_server(discovery_mode=DiscoveryMode.SEARCH)
+    async with Client(server) as client:
+        names = {t.name for t in await client.list_tools()}
+
+    assert "search_tools" in names
+    assert "call_tool" in names
+    # The whole point: 184 schemas must not reach the model up front.
+    assert len(names) < 10, f"search profile leaked {len(names)} tools"
+    assert "list_candidates" not in names
+
+
+async def test_search_profile_pins_a_working_entry_point():
+    server = build_server(discovery_mode=DiscoveryMode.SEARCH)
+    async with Client(server) as client:
+        names = {t.name for t in await client.list_tools()}
+    for pinned in PINNED_TOOLS:
+        assert pinned in names
+    assert "get_me" not in names, "never pin a tool that 404s"
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("search for candidates by location", "search_candidates"),
+        ("candidate activity history last contacted", "list_candidate_activities"),
+        ("add a candidate to a job pipeline", "create_pipeline"),
+        ("move an application to a new workflow status", "change_pipeline_status"),
+        ("delete a candidate", "delete_candidate"),
+        ("previous applicants for a job", "list_job_applications"),
+    ],
+)
+async def test_bm25_finds_the_right_tool_for_recruiting_language(query, expected):
+    """Discovery has to work on how a recruiter talks, not on endpoint names."""
+    server = build_server(discovery_mode=DiscoveryMode.SEARCH)
+    async with Client(server) as client:
+        result = await client.call_tool("search_tools", {"query": query})
+    text = str(result.data or result.content)
+    assert expected in text, f"{query!r} did not surface {expected}; got: {text[:400]}"
+
+
+async def test_call_tool_reaches_a_hidden_tool_in_search_mode():
+    """Hiding a tool from the listing must not make it uncallable."""
+
+    def handler(request):
+        return httpx2.Response(200, json={"id": 42, "first_name": "Dana"})
+
+    server = build_server(handler, discovery_mode=DiscoveryMode.SEARCH)
+    async with Client(server) as client:
+        result = await client.call_tool(
+            "call_tool", {"name": "get_candidate", "arguments": {"candidate_id": 42}}
+        )
+    assert "Dana" in str(result.data or result.content)
+
+
+# --- tool execution --------------------------------------------------------
+
+
+async def test_tool_calls_the_expected_cats_endpoint():
+    seen = {}
+
+    def handler(request):
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        return httpx2.Response(200, json={"id": 7})
+
+    server = build_server(handler, discovery_mode=DiscoveryMode.RAW)
+    async with Client(server) as client:
+        await client.call_tool("get_candidate", {"candidate_id": 7})
+
+    assert seen["method"] == "GET"
+    assert seen["path"].endswith("/candidates/7")
+
+
+async def test_tag_ids_are_wrapped_as_cats_requires():
+    """CATS expects [{"id": 1}], not [1]. Regression guard for commit ea735c8."""
+    seen = {}
+
+    def handler(request):
+        import json
+
+        seen["body"] = json.loads(request.content)
+        return httpx2.Response(200, json={})
+
+    server = build_server(handler, discovery_mode=DiscoveryMode.RAW)
+    async with Client(server) as client:
+        await client.call_tool("attach_candidate_tags", {"candidate_id": 1, "tag_ids": [10, 20]})
+
+    assert seen["body"]["tags"] == [{"id": 10}, {"id": 20}]
+
+
+async def test_list_results_are_compact_not_full_records():
+    """A page of full candidate records would swamp a context window."""
+    fat_candidate = {
+        "id": 1,
+        "first_name": "Dana",
+        "last_name": "Reid",
+        "city": "Kamloops",
+        "resume_text": "x" * 20_000,
+        "custom_fields": {"351005": "Yes"},
+        "_links": {"self": {"href": "..."}},
+    }
+
+    def handler(request):
+        return httpx2.Response(
+            200,
+            json={
+                "count": 1,
+                "total": 300,
+                "_links": {"next": {"href": "https://api.catsone.com/v3/candidates?page=2"}},
+                "_embedded": {"candidates": [fat_candidate]},
+            },
+        )
+
+    server = build_server(handler, discovery_mode=DiscoveryMode.RAW)
+    async with Client(server) as client:
+        result = await client.call_tool("list_candidates", {})
+
+    payload = str(result.data or result.content)
+    assert "resume_text" not in payload
+    assert "custom_fields" not in payload
+    assert "_links" not in payload
+    assert "Kamloops" in payload, "useful summary fields must survive"
+
+
+async def test_pagination_metadata_comes_from_hal_links():
+    def handler(request):
+        return httpx2.Response(
+            200,
+            json={
+                "count": 25,
+                "total": 300,
+                "_links": {"next": {"href": "https://api.catsone.com/v3/candidates?page=4"}},
+                "_embedded": {"candidates": []},
+            },
+        )
+
+    server = build_server(handler, discovery_mode=DiscoveryMode.RAW)
+    async with Client(server) as client:
+        result = await client.call_tool("list_candidates", {})
+
+    data = result.data
+    assert data["total"] == 300
+    assert data["has_more"] is True
+    assert data["next_page"] == 4
+
+
+async def test_last_page_reports_no_more():
+    def handler(request):
+        return httpx2.Response(
+            200,
+            json={"count": 2, "total": 2, "_links": {}, "_embedded": {"candidates": []}},
+        )
+
+    server = build_server(handler, discovery_mode=DiscoveryMode.RAW)
+    async with Client(server) as client:
+        result = await client.call_tool("list_candidates", {})
+
+    assert result.data["has_more"] is False
+
+
+async def test_empty_update_is_rejected_rather_than_silently_no_opping():
+    called = {"n": 0}
+
+    def handler(request):
+        called["n"] += 1
+        return httpx2.Response(200, json={})
+
+    server = build_server(handler, discovery_mode=DiscoveryMode.RAW)
+    async with Client(server) as client:
+        with pytest.raises(Exception) as excinfo:
+            await client.call_tool("update_candidate", {"candidate_id": 1})
+
+    assert called["n"] == 0, "no CATS request should be made for an empty update"
+    assert "no fields" in str(excinfo.value).lower()
+
+
+async def test_cats_errors_surface_as_tool_errors_not_raw_bodies():
+    def handler(request):
+        return httpx2.Response(404, text="<html>Not Found</html>" * 500)
+
+    server = build_server(handler, discovery_mode=DiscoveryMode.RAW)
+    async with Client(server) as client:
+        with pytest.raises(Exception) as excinfo:
+            await client.call_tool("get_candidate", {"candidate_id": 999})
+
+    message = str(excinfo.value)
+    assert "No such record" in message
+    assert len(message) < 1000, "error bodies must be truncated before the model sees them"
+
+
+async def test_credentials_never_leak_through_a_tool_result():
+    server = build_server(discovery_mode=DiscoveryMode.RAW)
+    async with Client(server) as client:
+        result = await client.call_tool("get_connection_status", {})
+    assert "test-key" not in str(result.data)
+
+
+# --- deployment safety -----------------------------------------------------
+
+
+def test_http_refuses_to_start_without_an_explicit_auth_mode():
+    """The pre-refactor server listened on 0.0.0.0:3000 with no auth at all.
+
+    There is no default, because guessing wrong is harmful in both directions:
+    assume a gateway that is not there and destructive tools sit on an open
+    URL; assume none and a correctly-fronted deployment fails to start.
+    """
+    from cats_mcp.auth.verifier import InsecureDeploymentError
+
+    with pytest.raises(InsecureDeploymentError) as excinfo:
+        build_server(transport=Transport.HTTP)
+
+    message = str(excinfo.value)
+    for mode in ("platform", "jwt", "none"):
+        assert mode in message, "the error must name every option"
+
+
+def test_platform_mode_starts_and_records_the_assumption():
+    """Horizon authenticates at its gateway before reaching server code."""
+    server = build_server(transport=Transport.HTTP, auth_mode=AuthMode.PLATFORM)
+    assert server is not None
+
+
+def test_platform_mode_does_not_enforce_tool_scopes():
+    """The gateway authenticates, but this server sees no claims to scope on.
+
+    Attaching require_scopes with no verifier would deny every call.
+    """
+    from cats_mcp.auth.verifier import auth_is_enforced
+
+    settings = Settings(
+        api_key="k", transport=Transport.HTTP, auth_mode=AuthMode.PLATFORM
+    )
+    assert auth_is_enforced(settings) is False
+
+
+def test_jwt_mode_requires_a_jwks_uri():
+    from cats_mcp.auth.verifier import InsecureDeploymentError
+
+    with pytest.raises(InsecureDeploymentError) as excinfo:
+        build_server(transport=Transport.HTTP, auth_mode=AuthMode.JWT)
+    assert "CATS_AUTH_JWKS_URI" in str(excinfo.value)
+
+
+def test_a_jwks_uri_alone_implies_jwt_mode():
+    """Configuring key verification is an unambiguous statement of intent."""
+    from cats_mcp.auth.verifier import auth_is_enforced
+
+    settings = Settings(
+        api_key="k",
+        transport=Transport.HTTP,
+        auth_jwks_uri="https://issuer.example/.well-known/jwks.json",
+    )
+    assert auth_is_enforced(settings) is True
+
+
+def test_none_mode_starts_for_local_development():
+    server = build_server(transport=Transport.HTTP, auth_mode=AuthMode.NONE)
+    assert server is not None
+
+
+def test_stdio_does_not_require_an_auth_mode():
+    """stdio is a pipe to a process the user started; there is no network surface."""
+    server = build_server(transport=Transport.STDIO)
+    assert server is not None

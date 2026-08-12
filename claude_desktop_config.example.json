@@ -1,9 +1,19 @@
 {
+  "_comment": [
+    "Claude Desktop / Claude Code / Cursor configuration for the CATS MCP server.",
+    "Replace the path with the absolute path to this repository - a relative path will not work.",
+    "search discovery keeps 200 tool schemas out of the context window; the model gets",
+    "search_tools and call_tool instead. Use raw only for an orchestrator that does its",
+    "own tool discovery.",
+    "See docs/DEPLOYMENT.md for remote and self-hosted setups."
+  ],
   "mcpServers": {
-    "cats-api": {
-      "url": "http://localhost:8000/sse",
-      "transport": {
-        "type": "sse"
+    "cats": {
+      "command": "python",
+      "args": ["/absolute/path/to/cats-mcp-server/server.py"],
+      "env": {
+        "CATS_API_KEY": "your_cats_api_key_here",
+        "CATS_DISCOVERY_MODE": "search"
       }
     }
   }

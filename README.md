@@ -1,329 +1,188 @@
 # CATS MCP Server
 
-FastMCP server for CATS (Complete Applicant Tracking System) API v3 with dynamic toolset loading.
+A universal MCP adapter for the [CATS (CatsOne)](https://www.catsone.com/) API v3.
 
-## Overview
+Comprehensive, atomic coverage of the CATS API exposed to any MCP-compatible
+client - Claude, ChatGPT, Codex, Mastra, Google ADK, or your own orchestrator.
 
-This MCP server provides access to **228 tools** across **17 toolsets** covering the complete CATS API v3. The toolset architecture allows agents to load only what they need, optimizing token usage and performance.
+For the current inventory see **[docs/TOOLS.md](docs/TOOLS.md)**, generated from
+the registry.
 
-**Key Features:**
-- 🎯 **228 MCP tools** covering all CATS API v3 endpoints (complete coverage)
-- 📦 **17 toolsets** organized by resource type
-- ⚡ **Dynamic loading** - load only what you need
-- 🔐 **Secure** - token-based authentication, no hardcoded credentials
-- 📝 **Type-safe** - full type hints on all tools
-- 📚 **Well-documented** - comprehensive docstrings with examples
-- 🚀 **Production-ready** - error handling, async/await, tested
-- ☁️ **FastMCP Cloud ready** - automatic deployments from GitHub
-- 📊 **Monitoring** - health checks and structured logging
+## What a client sees
 
-## Quick Start
+This server exposes all three MCP primitives, not just tools:
 
-### Option 1: FastMCP Cloud (Recommended)
+| Primitive | What it gives you |
+| --- | --- |
+| **Tools** | every CATS endpoint, plus batch reads and a status check |
+| **Resources** | what this adapter is, which account it is attached to, and the account-specific ids nothing else works without |
+| **Prompts** | how to operate the CATS API correctly - not what to do with the results |
 
-Deploy to managed cloud with automatic GitHub deployments:
+Start with the resource `cats://server/capabilities`. It states what this server
+owns, what it deliberately leaves to the caller, and how it is configured - and
+it works even when CATS is unreachable.
 
-```bash
-# 1. Ensure fastmcp.json exists (already created)
-# 2. Push to GitHub
-# 3. Create project at https://fastmcp.app
-# 4. Set CATS_API_KEY environment variable
-# 5. Deploy automatically - done!
+## What this is, and is not
 
-# Access at: https://your-project-name.fastmcp.app/mcp
-```
+This is an **adapter**. It owns CATS authentication, endpoint coverage, tool
+schemas, discovery metadata, response shaping, pagination, rate-limit handling
+and safety classification.
 
-See [FASTMCP_CLOUD_DEPLOYMENT.md](./FASTMCP_CLOUD_DEPLOYMENT.md) for complete guide.
+It does **not** own recruiting workflows, agent orchestration, memory, outreach,
+scheduling, candidate ranking, or a frontend. Those belong to the calling
+orchestrator. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-### Option 2: Local Development
+## Install
 
 ```bash
-# 1. Install dependencies
-pip install fastmcp httpx python-dotenv
-
-# 2. Configure
-cp .env.example .env
-# Edit .env with your CATS_API_KEY
-
-# 3. Run
-python server.py --list-toolsets  # See available toolsets
-python server.py                  # Load default toolsets (89 tools)
-python server.py --toolsets all   # Load all 162 tools
+uv venv
+uv pip install -r requirements.txt -r requirements-dev.txt
+uv pip install -e .
 ```
 
-## Architecture
+FastMCP 4 is a prerelease, so every dependency is pinned exactly - a loose
+specifier lets uv resolve that package to a prerelease too.
 
-### Toolset Organization
+## Configure
 
-**DEFAULT Toolsets (105 tools)** - Loaded by default:
-- **candidates** (44 tools) - Complete candidate management + all sub-resources
-- **jobs** (35 tools) - Complete job management, lists, applications, statuses
-- **pipelines** (17 tools) - Pipeline workflows and status management
-- **context** (3 tools) - Site info, user info, authorization
-- **tasks** (5 tools) - Task management
+Copy the variables you need into `.env` (gitignored) or set them in your
+deployment environment.
 
-**RECRUITING Toolsets (106 tools)** - Optional:
-- **companies** (48 tools) - Complete company management + phones, departments, lists, statuses, thumbnails
-- **contacts** (42 tools) - Complete contact management + lists, statuses, thumbnails
-- **activities** (6 tools) - Activity tracking (calls, meetings, emails)
-- **portals** (8 tools) - Career portals and applications
-- **work_history** (3 tools) - Employment history management
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CATS_API_KEY` | - | **Required.** CATS API key |
+| `CATS_API_BASE_URL` | `https://api.catsone.com/v3` | API base URL |
+| `CATS_DISCOVERY_MODE` | `search` | `raw`, `search` or `code` |
+| `CATS_TOOLSETS` | all | e.g. `candidates,jobs,pipelines` |
+| `CATS_TRANSPORT` | `stdio` | `stdio` or `http` |
+| `CATS_HOST` / `CATS_PORT` | `0.0.0.0` / `8000` | HTTP bind |
+| `CATS_AUTH_MODE` | - | `platform`, `jwt` or `none`; **required for HTTP** |
+| `CATS_AUTH_JWKS_URI` | - | JWKS endpoint, for `jwt` mode |
+| `CATS_AUTH_ISSUER` / `CATS_AUTH_AUDIENCE` | - | JWT claims to verify |
+| `CATS_SEARCH_MAX_RESULTS` | `5` | results per `search_tools` call |
+| `LOG_LEVEL` | `INFO` | logging verbosity |
 
-**DATA & CONFIG Toolsets (22 tools)** - Optional:
-- **tags** (2 tools) - Global tag management
-- **webhooks** (4 tools) - Webhook subscriptions with 24+ event types
-- **users** (2 tools) - User and permissions management
-- **triggers** (2 tools) - Automated trigger information
-- **attachments** (4 tools) - File management + AI resume parsing
-- **backups** (3 tools) - Database backup management
-- **events** (5 tools) - Calendar events and scheduling
-
-### Token Efficiency
-
-Agents load only needed toolsets, dramatically reducing token usage:
-
-| Toolsets | Tools Loaded | Use Case |
-|----------|--------------|----------|
-| Default | 105 (~46%) | Core recruiting |
-| candidates,companies | 92 (~40%) | Candidate sourcing |
-| all | 228 (100%) | Complete API coverage |
-
-## Installation
-
-### 1. Setup
+## Run
 
 ```bash
-# Clone repository
-cd cats-mcp-server
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install fastmcp httpx python-dotenv
+python server.py                    # stdio, for Claude Desktop / Cursor / Claude Code
+CATS_TRANSPORT=http python server.py    # HTTP (requires auth, see below)
 ```
 
-### 2. Configure
-
-Create `.env` file:
+Or via the FastMCP CLI:
 
 ```bash
-CATS_API_BASE_URL=https://api.catsone.com/v3
-CATS_API_KEY=your_cats_api_key_here
-
-# Optional: Default toolsets
-CATS_TOOLSETS=candidates,jobs,companies
+fastmcp run src/cats_mcp/app.py:mcp
 ```
 
-### 3. Add to Claude Desktop
+## Discovery modes
 
-Edit `~/.claude/config.json`:
+The catalog is large on purpose - atomic coverage is what makes the adapter
+reusable. But those schemas must not all land in a model's context.
 
-```json
-{
-  "mcpServers": {
-    "cats": {
-      "command": "python",
-      "args": ["/path/to/cats-mcp-server/server.py"],
-      "env": {
-        "CATS_API_BASE_URL": "https://api.catsone.com/v3",
-        "CATS_API_KEY": "your_api_key",
-        "CATS_TOOLSETS": "candidates,jobs,companies"
-      }
-    }
-  }
-}
-```
+| Mode | The model sees | Use for |
+| --- | --- | --- |
+| `raw` | the full authorized catalog | orchestrators doing their own tool discovery |
+| `search` | `search_tools`, `call_tool`, pinned tools | direct MCP clients |
+| `code` | a Code Mode sandbox | multi-step composition without intermediate results |
 
-## Usage
+**Every tool stays callable in every mode.** Only visibility changes; hidden
+tools are reached through `call_tool`, and authorization is enforced the same
+either way.
 
-### Command Line
+**Mastra and other orchestrators should use `raw`** and run their own tool
+search across every connected MCP server. Stacking this server's BM25 transform
+under Mastra's means searching an index of an index, and prevents Mastra from
+ranking CATS tools against tools from other servers.
+
+`code` needs an optional extra:
 
 ```bash
-# List toolsets
-python server.py --list-toolsets
-
-# Default (77 tools)
-python server.py
-
-# Specific toolsets
-python server.py --toolsets candidates,jobs,companies
-
-# Everything (163 tools)
-python server.py --toolsets all
-
-# Environment variable
-export CATS_TOOLSETS='candidates,pipelines'
-python server.py
+uv pip install -e '.[code-mode]'
 ```
 
-### Common Combinations
+## Authentication
+
+Serving over HTTP requires saying **who verifies the caller**, via
+`CATS_AUTH_MODE`. There is no default, because guessing wrong is harmful in
+both directions: assume a gateway that is not there and destructive tools sit
+on an open URL; assume none and a correctly-fronted deployment fails to start.
+
+| Mode | Meaning | Use when |
+| --- | --- | --- |
+| `platform` | something in front authenticates first | hosted on Prefect Horizon, or behind a reverse proxy |
+| `jwt` | this server verifies bearer tokens itself | self-hosted with nothing in front |
+| `none` | nobody authenticates | local development only |
+
+**On Horizon, use `platform`.** Its gateway "runs before your server code" and
+authentication is enabled by default for hosted endpoints, so a rejected caller
+never reaches this process.
+
+For `jwt`:
 
 ```bash
-# Recruiting team
---toolsets candidates,jobs,pipelines,companies,activities
-
-# Hiring manager
---toolsets candidates,jobs,pipelines,events
-
-# Administrator
---toolsets users,webhooks,backups,triggers,tags
-
-# Full access
---toolsets all
+CATS_AUTH_MODE=jwt
+CATS_AUTH_JWKS_URI=https://your-issuer/.well-known/jwks.json
+CATS_AUTH_ISSUER=https://your-issuer/
+CATS_AUTH_AUDIENCE=cats-mcp
 ```
 
-## API Coverage
+stdio needs no mode - the transport is a pipe to a process you started.
 
-### Complete Tool List
+**Per-tool scopes** (`cats:read`, `cats:write`, `cats:destructive`,
+`cats:bulk`, `cats:admin`) apply in `jwt` mode, where this server sees verified
+claims. Authorization then filters **discovery as well as execution**: a
+read-only caller cannot see destructive tools in a listing, in search results,
+or reach them through `call_tool`. Under `platform`, the gateway authenticates
+but this server sees no claims, so authorization is the gateway's to enforce.
 
-**Candidates (44 tools)** - Complete Coverage
-- Main: list, get, create, update, delete, search, filter, authorize
-- Sub-resources: pipelines, activities, attachments, custom fields (with details), emails (full CRUD), phones (full CRUD), tags, work history (full CRUD), lists (full CRUD), thumbnails
+## Working with candidate data
 
-**Jobs (35 tools)** - Complete Coverage
-- Main: list, get, create, update, delete, search, filter
-- Sub-resources: activities, attachments, custom fields (with details), tags, statuses (full management)
-- Job lists: full CRUD + item management
-- Applications: list, get details, get fields
+List and search tools return compact summaries by default - ids plus a small
+field projection, with `count`, `total`, `has_more` and `next_page`. Resumes,
+attachments, activities, pipelines and custom fields are never included in a
+list result; each has a dedicated tool.
 
-**Pipelines (17 tools)** - Complete Coverage
-- Main: list, get, create, update, delete, filter
-- Workflows: list workflows, get workflow, list workflow statuses, get workflow status
-- Status management: get history, change status
+Widen deliberately with `summary_level='full'`, `fields='a,b,c'`, `page` and
+`per_page`.
 
-**Companies (48 tools)** - Complete Coverage
-- Main: list, get, create, update, delete, search, filter
-- Sub-resources: activities, attachments, contacts, custom fields (with details), pipelines, tags
-- Advanced: phones (full CRUD), departments (full CRUD), lists (full CRUD), statuses, thumbnails
+## Rate limits
 
-**Contacts (42 tools)** - Complete Coverage
-- Main: list, get, create, update, delete, search, filter
-- Sub-resources: activities, attachments, custom fields (with details), emails (full CRUD), phones (full CRUD), pipelines, tags
-- Advanced: lists (full CRUD), statuses, thumbnails
+The CATS standard is **500 requests/hour**. Some accounts are raised, so the
+real ceiling is read from the response headers rather than assumed;
+`Retry-After` is honoured and backoff is jittered.
 
-**Activities (6 tools)**
-- list, get, update, delete, search, filter
-- Types: email, meeting, call_talked, call_lvm, call_missed, text_message, other
+Call `get_connection_status` to see the remaining budget before a large batch.
 
-**Portals (8 tools)**
-- list, get, list jobs
-- submit application, publish/unpublish jobs
-- registration forms
-
-**Work History (3 tools)**
-- get, update, delete
-
-**Tags (2 tools)**
-- list, get
-
-**Webhooks (4 tools)**
-- list, get, create, delete
-- 24+ event types with HMAC-SHA256 verification
-
-**Users (2 tools)**
-- list, get
-- Access levels: read_only, edit, admin
-
-**Triggers (2 tools)**
-- list, get
-
-**Attachments (4 tools)**
-- get, delete, download
-- **parse_resume** - AI-powered resume parsing
-
-**Backups (3 tools)**
-- list, get, create
-- Options: attachments, emails
-
-**Events (5 tools)**
-- Full CRUD: list, get, create, update, delete
-- Attendees, virtual meeting URLs, calendar integration
-
-**Context (3 tools)**
-- get_site, get_me, authorize_user
-
-**Tasks (5 tools)**
-- Full CRUD with priority, assignments, due dates
+The composite read primitives exist for this reason - `get_candidate_engagement`
+answers "when was each of these 50 candidates last contacted" in one tool call
+instead of 50, and returns a compact table instead of 50 activity lists. See
+[docs/TOOLS.md](docs/TOOLS.md).
 
 ## Development
 
-### File Structure
-
-```
-cats-mcp-server/
-├── server.py                  # Core (242 lines)
-├── toolsets_default.py        # Default (1,611 lines, 77 tools)
-├── toolsets_recruiting.py     # Recruiting (1,364 lines, 64 tools)
-├── toolsets_data.py           # Data (1,017 lines, 22 tools)
-├── .env                       # Config (not in git)
-├── .env.example               # Template
-├── README.md                  # This file
-└── cats-v3-api-endpoints.md   # API reference
-```
-
-### Testing
-
 ```bash
-# Syntax check
-python -m py_compile server.py toolsets_*.py
-
-# List toolsets
-python server.py --list-toolsets
-
-# Test loading
-python server.py --toolsets candidates
+python -m pytest tests/ -q            # test suite
+python -m ruff check src/ tests/      # lint
+python scripts/generate_tool_docs.py --write   # regenerate docs/TOOLS.md
 ```
 
-## Troubleshooting
+Tool counts are generated from the registry and a test fails if the docs drift.
 
-### Common Issues
+## Adding a tool
 
-**"CATS_API_KEY not configured"**
-- Set in `.env` or export as environment variable
+Tools are declarative. Add a `ToolSpec` to the right module in
+`src/cats_mcp/registry/specs/` - name, endpoint, method, parameters and their
+locations, safety class, tags and response strategy. One executor turns any spec
+into a working tool; there is no per-tool request code to write.
 
-**"Module not found: toolsets_*"**
-- Ensure all three toolset files exist
+## Documentation
 
-**Rate Limiting (500 req/hour)**
-- Monitor `X-Rate-Limit-Remaining` header
-- Implement backoff on 429 errors
+| Document | Covers |
+| --- | --- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | what this owns and does not, consumers, design decisions |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | running it locally, on Horizon, or self-hosted |
+| [docs/TOOLS.md](docs/TOOLS.md) | tool, resource and prompt inventory (generated) |
+| [docs/CREDENTIAL-SAFETY.md](docs/CREDENTIAL-SAFETY.md) | secret handling and the pre-commit guard |
 
-**401 Unauthorized**
-- Verify API v3 key (not v2)
-- Check key permissions
-
-## Resources
-
-- **CATS API:** https://docs.catsone.com/api/v3/
-- **FastMCP:** https://gofastmcp.com/
-- **MCP Protocol:** https://modelcontextprotocol.io/
-
-## License
-
-Provided as-is for CATS API v3 integration. Follow CATS API terms of service.
-
-## Changelog
-
-### 2025-12-16 - v2.0.0
-- **Complete API coverage**: Expanded from 164 to 228 tools (+64 endpoints)
-- Added missing critical features:
-  - Lists management (candidate/job/company/contact lists - 32 endpoints)
-  - Status management (job/company/contact statuses - 9 endpoints)
-  - Thumbnails (candidate/company/contact - 6 endpoints)
-  - Custom field details (3 endpoints per resource - 9 total)
-  - Work history CRUD (3 endpoints)
-  - Company phones (5 endpoints)
-  - Company departments (5 endpoints)
-- **Bug fixes**:
-  - Fixed `filter_candidates` pagination (moved to JSON body)
-  - Fixed `filter_jobs` pagination (moved to JSON body)
-- Now covers 100% of documented CATS API v3 endpoints
-
-### 2025-01-26 - v1.0.0
-- Initial release with toolset architecture
-- 164 tools across 17 toolsets
-- Dynamic loading via CLI/environment
-- ~82% CATS API v3 coverage
-- Production-ready
+Superseded documentation is not kept in the working tree; git history has it.
