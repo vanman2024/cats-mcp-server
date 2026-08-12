@@ -6,7 +6,7 @@
 5 composite read primitives, and 1 status tool.
 
 Plus 5 resources, 1 resource template and 
-4 prompts - see below.
+5 prompts - see below.
 
 ## By toolset
 

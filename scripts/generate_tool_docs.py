@@ -31,7 +31,7 @@ STATUS_TOOL_COUNT = 1
 #: tests/test_docs_drift.py, so these cannot quietly go stale either.
 RESOURCE_COUNT = 5
 TEMPLATE_COUNT = 1
-PROMPT_COUNT = 4
+PROMPT_COUNT = 5
 
 
 def render() -> str:

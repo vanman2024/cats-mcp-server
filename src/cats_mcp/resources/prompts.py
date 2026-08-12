@@ -137,6 +137,53 @@ def register(mcp: Any) -> int:
         )
 
     @mcp.prompt(
+        name="search_by_location",
+        description=(
+            "How to find people in a town or region without silently matching the "
+            "wrong places. Use before any location-based candidate search."
+        ),
+        tags={"ats", "candidate", "search", "usage"},
+    )
+    def search_by_location(towns: str = "", within_km: str = "") -> str:
+        target = ""
+        if towns:
+            target += f"\n\nTowns in scope: {towns}"
+        if within_km:
+            target += f"\nRadius: {within_km} km"
+
+        return (
+            "Two traps make location searches quietly return the wrong people.\n"
+            "\n"
+            "1. The 'contains' filter tokenizes the value and matches ANY token. "
+            "Filtering city with contains='Logan Lake' also returns Williams Lake, "
+            "Slave Lake and Deer Lake. contains='Cache Creek' returns every Creek. "
+            "Nothing errors - the extra results simply look plausible.\n"
+            "\n"
+            "   Use filter='exactly' on the city field, one filter per "
+            "municipality.\n"
+            "\n"
+            "2. Searching a single city excludes the surrounding communities people "
+            "commute from. Establish the list of towns in scope first, or use the "
+            "'geo_distance' filter to match a radius from a postal code - more "
+            "accurate than any hand-written town list.\n"
+            "\n"
+            "The efficient shape, against a 500 requests/hour budget:\n"
+            "\n"
+            "1. One paginated filter_candidates call per town, city matched "
+            "exactly.\n"
+            "2. Keep results compact. Requesting every field returns enormous "
+            "records for people you are about to discard.\n"
+            "3. If certifications or other account-specific data decide the match, "
+            "pass summary_level='standard' so custom fields arrive with the list, "
+            "rather than fetching each candidate individually.\n"
+            "4. Only load a full record, resume or activity history for someone who "
+            "already matches.\n"
+            "5. Deduplicate across towns by candidate id - one person can appear in "
+            "more than one query."
+            f"{target}"
+        )
+
+    @mcp.prompt(
         name="record_an_external_interaction",
         description=(
             "How to log that contact happened outside CATS - a call, email or "
@@ -165,4 +212,4 @@ def register(mcp: Any) -> int:
             f"{who}"
         )
 
-    return 4
+    return 5

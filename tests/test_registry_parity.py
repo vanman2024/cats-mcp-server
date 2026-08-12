@@ -106,13 +106,60 @@ async def test_removed_tools_are_gone(registered_tools):
         assert name not in registered_tools, f"{name} should be removed: {why}"
 
 
+#: Tools whose *parameter descriptions* were deliberately improved. Their schema
+#: shape - properties, types, required - must still match the baseline exactly.
+#:
+#: The filter tools are here because CATS's `contains` operator tokenizes its
+#: value: filtering city with contains="Logan Lake" also returns Williams Lake,
+#: Slave Lake and Deer Lake, and contains="Cache Creek" returns every Creek.
+#: Nothing errors, so an agent that picks the wrong operator gets
+#: plausible-looking wrong results. The description now says so.
+INTENTIONALLY_REWORDED = {
+    "filter_activities",
+    "filter_candidates",
+    "filter_companies",
+    "filter_contacts",
+    "filter_jobs",
+    "filter_pipelines",
+}
+
+
+def _shape(schema: dict) -> dict:
+    """The schema with parameter descriptions stripped, leaving the contract."""
+    properties = {
+        name: {k: v for k, v in prop.items() if k != "description"}
+        for name, prop in (schema.get("properties") or {}).items()
+    }
+    return {**schema, "properties": properties}
+
+
 async def test_schemas_are_byte_identical(registered_tools, expected):
+    checked = (set(expected) & set(registered_tools)) - INTENTIONALLY_REWORDED
     differences = [
         name
-        for name in sorted(set(expected) & set(registered_tools))
+        for name in sorted(checked)
         if (expected[name].get("input_schema") or {}) != (registered_tools[name].parameters or {})
     ]
     assert not differences, f"tool schemas changed: {differences}"
+
+
+async def test_reworded_tools_kept_their_schema_shape(registered_tools, expected):
+    """A better description must not quietly change the contract."""
+    differences = [
+        name
+        for name in sorted(INTENTIONALLY_REWORDED & set(registered_tools))
+        if _shape(expected[name].get("input_schema") or {})
+        != _shape(registered_tools[name].parameters or {})
+    ]
+    assert not differences, f"reworded tools changed shape, not just wording: {differences}"
+
+
+async def test_reworded_tools_actually_warn_about_tokenization(registered_tools):
+    """Guards the reason that exception exists at all."""
+    for name in sorted(INTENTIONALLY_REWORDED & set(registered_tools)):
+        properties = (registered_tools[name].parameters or {}).get("properties", {})
+        description = properties.get("filter_type", {}).get("description", "")
+        assert "tokenizes" in description, f"{name} lost its contains warning"
 
 
 # --- registry integrity ----------------------------------------------------
