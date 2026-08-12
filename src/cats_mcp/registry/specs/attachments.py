@@ -62,9 +62,17 @@ SPECS: list[ToolSpec] = [
         operation="download",
         method="GET",
         endpoint="/attachments/{attachment_id}/download",
-        description="Download an attachment file. Retrieves file content. Prefer the list tool first to find the right file.\n\nWraps: GET /attachments/{attachment_id}/download",
+        description=(
+            "Download an attachment's actual file contents - a resume, cover letter, "
+            "certificate or ticket - and return the document itself so it can be read "
+            "and analysed. Use list_candidate_attachments first to find the attachment "
+            "id and see what the file is.\n\n"
+            "This returns the real document, not a summary, so retrieve one at a time "
+            "rather than looping over a whole list. Files over 5MB are refused.\n\n"
+            "Wraps: GET /attachments/{attachment_id}/download"
+        ),
         safety=Safety.READ,
-        response=ResponseStrategy.RAW,
+        response=ResponseStrategy.BINARY,
         toolset="attachments",
         params=(
             Param(

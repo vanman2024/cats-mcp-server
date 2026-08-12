@@ -246,7 +246,17 @@ SPECS: list[ToolSpec] = [
             Param(
                 name="filter_type",
                 annotation=str,
-                description='Filter operator ("contains", "exactly", "is_empty", "greater_than", "less_than", "between")',
+                description=(
+                    "Filter operator. WARNING: 'contains' tokenizes the value and "
+                    "matches ANY token, so contains='Logan Lake' also returns "
+                    "Williams Lake, Slave Lake and Deer Lake, and contains='Cache "
+                    "Creek' returns every Creek. For any multi-word value such as a "
+                    "municipality, use 'exactly' and run one filter per value. "
+                    "Options: 'contains' (reliable only for single words), "
+                    "'exactly', 'is_empty', 'greater_than', 'less_than', 'between', "
+                    "'geo_distance' (radius from a postal code - prefer this for "
+                    "'near X' rather than listing towns)."
+                ),
                 location=ParamLocation.BODY,
                 wire_name="filter",
             ),
@@ -1075,7 +1085,7 @@ SPECS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="list_candidate_lists",
-        resource="candidate",
+        resource="record_list",
         operation="list",
         method="GET",
         endpoint="/candidates/lists",
@@ -1103,7 +1113,7 @@ SPECS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="get_candidate_list",
-        resource="candidate",
+        resource="record_list",
         operation="get",
         method="GET",
         endpoint="/candidates/lists/{list_id}",
@@ -1167,11 +1177,22 @@ SPECS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="list_candidate_list_items",
-        resource="candidate",
+        resource="list_item",
         operation="list",
         method="GET",
         endpoint="/candidates/lists/{list_id}/items",
-        description="List all items in a candidate list. Use this to enumerate candidates and obtain their ids.\n\nWraps: GET /candidates/lists/{list_id}/items",
+        description=(
+            "List the membership rows of a saved candidate list, such as a Do Not "
+            "Contact list.\n\n"
+            "IMPORTANT: each row's `id` is the list-membership id, NOT the "
+            "candidate id. The candidate is in `candidate_id`. Comparing a "
+            "candidate id against these `id` values silently produces wrong "
+            "answers - which on a Do Not Contact list means clearing someone who "
+            "should not be contacted.\n\n"
+            "Pass per_page=100 to retrieve a whole list in a few calls rather than "
+            "opening each row individually.\n\n"
+            "Wraps: GET /candidates/lists/{list_id}/items"
+        ),
         safety=Safety.READ,
         response=ResponseStrategy.SUMMARY,
         collection_key="items",
@@ -1201,11 +1222,17 @@ SPECS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="get_candidate_list_item",
-        resource="candidate",
+        resource="list_item",
         operation="get",
         method="GET",
         endpoint="/candidates/lists/{list_id}/items/{item_id}",
-        description="Get a specific candidate list item. Use this when you already have a candidate id and need its detail.\n\nWraps: GET /candidates/lists/{list_id}/items/{item_id}",
+        description=(
+            "Retrieve one membership row from a candidate list. The `id` is the "
+            "membership id; the candidate is in `candidate_id`.\n\n"
+            "Prefer list_candidate_list_items with per_page=100 over calling this "
+            "per row - a 299-entry list is three calls that way, and 299 this way.\n\n"
+            "Wraps: GET /candidates/lists/{list_id}/items/{item_id}"
+        ),
         safety=Safety.READ,
         response=ResponseStrategy.DETAIL,
         toolset="candidates",
@@ -1284,7 +1311,7 @@ SPECS: list[ToolSpec] = [
         endpoint="/candidates/{candidate_id}/thumbnail",
         description="Get a candidate's thumbnail image. Use this when you already have a candidate id and need its detail.\n\nWraps: GET /candidates/{candidate_id}/thumbnail",
         safety=Safety.READ,
-        response=ResponseStrategy.DETAIL,
+        response=ResponseStrategy.BINARY,
         toolset="candidates",
         params=(
             Param(

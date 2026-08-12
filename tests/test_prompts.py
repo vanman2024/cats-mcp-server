@@ -45,6 +45,7 @@ EXPECTED_PROMPTS = {
     "search_within_rate_budget",
     "find_the_right_custom_field",
     "record_an_external_interaction",
+    "search_by_location",
 }
 
 

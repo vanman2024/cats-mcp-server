@@ -290,7 +290,17 @@ SPECS: list[ToolSpec] = [
             Param(
                 name="filter_type",
                 annotation=str,
-                description='Filter operator ("contains", "exactly", "is_empty", "greater_than", "less_than", "between")',
+                description=(
+                    "Filter operator. WARNING: 'contains' tokenizes the value and "
+                    "matches ANY token, so contains='Logan Lake' also returns "
+                    "Williams Lake, Slave Lake and Deer Lake, and contains='Cache "
+                    "Creek' returns every Creek. For any multi-word value such as a "
+                    "municipality, use 'exactly' and run one filter per value. "
+                    "Options: 'contains' (reliable only for single words), "
+                    "'exactly', 'is_empty', 'greater_than', 'less_than', 'between', "
+                    "'geo_distance' (radius from a postal code - prefer this for "
+                    "'near X' rather than listing towns)."
+                ),
                 location=ParamLocation.BODY,
                 wire_name="filter",
             ),
@@ -928,7 +938,7 @@ SPECS: list[ToolSpec] = [
         endpoint="/companies/{company_id}/thumbnail",
         description="Get a company's thumbnail image. Use this when you already have a company id and need its detail.\n\nWraps: GET /companies/{company_id}/thumbnail",
         safety=Safety.READ,
-        response=ResponseStrategy.DETAIL,
+        response=ResponseStrategy.BINARY,
         toolset="companies",
         params=(
             Param(

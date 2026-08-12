@@ -25,10 +25,12 @@ the full result count.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from cats_mcp.registry.models import ResponseStrategy, ToolSpec
+from cats_mcp.responses.links import record_url
 
 #: Compact projections per resource. Every one includes `id`, because an id is
 #: what lets the model fetch detail later.
@@ -53,10 +55,17 @@ SUMMARY_FIELDS: dict[str, list[str]] = {
     "user": ["id", "first_name", "last_name", "email_address"],
     "attachment": ["id", "filename", "content_type", "date_created", "is_resume"],
     "work_history": ["id", "company_name", "title", "start_date", "end_date"],
+    # A list *item* is not the record it points at. Its `id` is the membership
+    # row; the record is in candidate_id / job_id. Projecting these through the
+    # candidate summary dropped candidate_id entirely and left the item id
+    # sitting in `id`, where it reads as a candidate id and is not one.
+    "list_item": ["id", "candidate_id", "job_id", "date_created"],
+    "record_list": ["id", "name", "description", "total", "date_created"],
 }
 
-#: Never returned in a list result at any summary level. These are the fields
-#: that make a candidate record enormous, and each has a dedicated tool.
+#: Unbounded sub-collections. Excluded from list results at every summary level
+#: because one of them can be tens of kilobytes per record, and each has a
+#: dedicated tool for retrieving it deliberately.
 _NEVER_IN_LISTS = frozenset(
     {
         "resume",
@@ -65,11 +74,18 @@ _NEVER_IN_LISTS = frozenset(
         "activities",
         "pipelines",
         "applications",
-        "custom_fields",
         "work_history",
         "notes_html",
     }
 )
+
+#: Bounded but noisy: excluded from `compact`, included from `standard` up.
+#:
+#: Custom fields hold the data an account actually screens on - certifications,
+#: trade qualifications, availability - so making them unreachable in a list
+#: forces one request per candidate to answer "who has a Red Seal". At 500
+#: requests/hour that is the difference between one call and fifty.
+_EXCLUDED_FROM_COMPACT = frozenset({"custom_fields"})
 
 #: HAL plumbing. Useful to the API, noise to a model.
 _HAL_KEYS = frozenset({"_links", "_embedded"})
@@ -77,16 +93,67 @@ _HAL_KEYS = frozenset({"_links", "_embedded"})
 _SUMMARY_LEVELS = ("compact", "standard", "full")
 
 
+#: Navigation relations. These point at pages, not at records.
+_NAVIGATION_RELS = frozenset({"self", "next", "prev", "previous", "first", "last"})
+
+#: Trailing numeric id in a HAL href, e.g. ".../candidates/407813885".
+_HREF_ID = re.compile(r"/(\d+)/?$")
+
+
+def _harvest_related_ids(item: dict[str, Any]) -> dict[str, Any]:
+    """Recover record ids from HAL `_links` and `_embedded` before they are stripped.
+
+    Some responses carry the id of the record they refer to *only* in the HAL
+    plumbing. A saved-list membership row is the clearest case: its own `id` is
+    the row, and the person it points at may appear solely as
+    `_links.candidate.href`. Stripping HAL then leaves a row that identifies
+    nobody, which makes the endpoint look like it can only be resolved one item
+    at a time - it cannot, and doing so costs 299 requests against a 500/hour
+    budget for a single list.
+
+    Existing top-level fields always win; this only fills gaps.
+    """
+    found: dict[str, Any] = {}
+
+    links = item.get("_links")
+    if isinstance(links, dict):
+        for rel, target in links.items():
+            if rel in _NAVIGATION_RELS:
+                continue
+            href = target.get("href") if isinstance(target, dict) else target
+            if not isinstance(href, str):
+                continue
+            match = _HREF_ID.search(href)
+            if match:
+                found.setdefault(f"{rel}_id", int(match.group(1)))
+
+    embedded = item.get("_embedded")
+    if isinstance(embedded, dict):
+        for rel, target in embedded.items():
+            if isinstance(target, dict) and "id" in target:
+                found.setdefault(f"{rel}_id", target["id"])
+
+    return {k: v for k, v in found.items() if k not in item}
+
+
 def _strip_hal(item: dict[str, Any]) -> dict[str, Any]:
-    return {k: v for k, v in item.items() if k not in _HAL_KEYS}
+    """Drop HAL plumbing, keeping any record ids it was carrying."""
+    recovered = _harvest_related_ids(item)
+    kept = {k: v for k, v in item.items() if k not in _HAL_KEYS}
+    kept.update(recovered)
+    return kept
 
 
-def _project(item: Any, fields: list[str] | None) -> Any:
+def _project(item: Any, fields: list[str] | None, *, drop_custom_fields: bool = False) -> Any:
     if not isinstance(item, dict):
         return item
     cleaned = _strip_hal(item)
     if fields is None:
-        return {k: v for k, v in cleaned.items() if k not in _NEVER_IN_LISTS}
+        excluded = _NEVER_IN_LISTS
+        if drop_custom_fields:
+            excluded = excluded | _EXCLUDED_FROM_COMPACT
+        return {k: v for k, v in cleaned.items() if k not in excluded}
+    # An explicit field list is an explicit choice; honour it exactly.
     projected = {k: cleaned.get(k) for k in fields if k in cleaned}
     if "id" in cleaned:
         projected["id"] = cleaned["id"]
@@ -133,16 +200,19 @@ def _next_page(raw: dict[str, Any]) -> int | None:
 def _fields_for(spec: ToolSpec, summary_level: str, explicit: str | None) -> list[str] | None:
     if explicit:
         requested = [f.strip() for f in explicit.split(",") if f.strip()]
+        # `fields="all"` is handled by the caller, which promotes it to
+        # summary_level="full". Reaching here with it would silently return a
+        # compact record to someone who asked for everything.
         if requested and requested != ["all"]:
             return requested
-    if summary_level == "full":
-        return None
-    if summary_level == "standard":
+    if summary_level in ("full", "standard"):
         return None
     return SUMMARY_FIELDS.get(spec.resource)
 
 
-def shape_list(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> dict[str, Any]:
+def shape_list(
+    spec: ToolSpec, raw: Any, call_args: dict[str, Any], ui_base_url: str = ""
+) -> dict[str, Any]:
     """Compact a CATS collection response."""
     if not isinstance(raw, dict):
         return {"items": raw, "count": len(raw) if isinstance(raw, list) else 0}
@@ -151,8 +221,22 @@ def shape_list(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> dict[str,
     if summary_level not in _SUMMARY_LEVELS:
         summary_level = "compact"
 
-    fields = _fields_for(spec, summary_level, call_args.get("fields"))
-    items = [_project(item, fields) for item in _extract_items(raw, spec.collection_key)]
+    explicit_fields = call_args.get("fields")
+    # The pre-refactor tools accepted fields="all" to mean "the whole record".
+    # Honour it rather than silently returning a compact result to a caller who
+    # explicitly asked for everything.
+    if explicit_fields and explicit_fields.strip().lower() == "all":
+        summary_level = "full"
+
+    fields = _fields_for(spec, summary_level, explicit_fields)
+    items = [
+        _with_url(
+            _project(item, fields, drop_custom_fields=summary_level == "compact"),
+            spec,
+            ui_base_url,
+        )
+        for item in _extract_items(raw, spec.collection_key)
+    ]
 
     total = raw.get("total")
     next_page = _next_page(raw)
@@ -170,32 +254,56 @@ def shape_list(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> dict[str,
     if summary_level == "compact" and fields:
         result["note"] = (
             f"Compact view: {', '.join(fields)}. "
-            f"Pass summary_level='full' for complete records, fields='a,b,c' to "
-            f"choose columns, or use the dedicated get/detail tool for one record."
+            f"Pass summary_level='standard' to include custom fields such as "
+            f"certifications and trade qualifications, summary_level='full' for "
+            f"the whole record, or fields='a,b,c' to choose columns. Resumes, "
+            f"attachments, activities and pipelines are never included in a list "
+            f"- each has its own tool."
         )
     return result
 
 
-def shape_detail(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> Any:
+def shape_detail(
+    spec: ToolSpec, raw: Any, call_args: dict[str, Any], ui_base_url: str = ""
+) -> Any:
     """Trim a single record: drop HAL plumbing, keep the record itself."""
     if not isinstance(raw, dict):
         return raw
     summary_level = str(call_args.get("summary_level") or "standard").lower()
     cleaned = _strip_hal(raw)
     if summary_level == "full":
-        return cleaned
+        return _with_url(cleaned, spec, ui_base_url)
     if summary_level == "compact":
         fields = SUMMARY_FIELDS.get(spec.resource)
         if fields:
-            return _project(raw, fields)
+            return _with_url(_project(raw, fields), spec, ui_base_url)
     # `standard`: the whole record minus the sub-collections that have their
     # own tools. Those are what make a candidate record enormous.
-    return {k: v for k, v in cleaned.items() if k not in _NEVER_IN_LISTS}
+    return _with_url(
+        {k: v for k, v in cleaned.items() if k not in _NEVER_IN_LISTS}, spec, ui_base_url
+    )
 
 
-def shape_response(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> Any:
+def _with_url(item: Any, spec: ToolSpec, ui_base_url: str) -> Any:
+    """Attach a link to the record in the CATS web UI, when one can be built.
+
+    Emitted by the adapter rather than left to the caller, because consumers
+    were constructing a REST-looking `/candidates/{id}` path that does not
+    exist - links that look right in a spreadsheet and 404 when clicked.
+    """
+    if not isinstance(item, dict):
+        return item
+    url = record_url(ui_base_url, spec.resource, item.get("id"))
+    if url:
+        item["url"] = url
+    return item
+
+
+def shape_response(
+    spec: ToolSpec, raw: Any, call_args: dict[str, Any], ui_base_url: str = ""
+) -> Any:
     if spec.response is ResponseStrategy.SUMMARY:
-        return shape_list(spec, raw, call_args)
+        return shape_list(spec, raw, call_args, ui_base_url)
     if spec.response is ResponseStrategy.DETAIL:
-        return shape_detail(spec, raw, call_args)
+        return shape_detail(spec, raw, call_args, ui_base_url)
     return raw

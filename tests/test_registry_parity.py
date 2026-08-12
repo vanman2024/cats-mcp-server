@@ -106,13 +106,130 @@ async def test_removed_tools_are_gone(registered_tools):
         assert name not in registered_tools, f"{name} should be removed: {why}"
 
 
-async def test_schemas_are_byte_identical(registered_tools, expected):
+#: Tools whose *parameter descriptions* were deliberately improved. Their schema
+#: shape - properties, types, required - must still match the baseline exactly.
+#:
+#: The filter tools are here because CATS's `contains` operator tokenizes its
+#: value: filtering city with contains="Logan Lake" also returns Williams Lake,
+#: Slave Lake and Deer Lake, and contains="Cache Creek" returns every Creek.
+#: Nothing errors, so an agent that picks the wrong operator gets
+#: plausible-looking wrong results. The description now says so.
+INTENTIONALLY_REWORDED = {
+    "filter_activities",
+    "filter_candidates",
+    "filter_companies",
+    "filter_contacts",
+    "filter_jobs",
+    "filter_pipelines",
+}
+
+
+#: Response-shaping parameters now injected into every SUMMARY/DETAIL tool.
+#:
+#: Added deliberately: only 12 of 103 shaped tools declared `fields` and none
+#: declared `summary_level`, so on 91 tools there was no way to widen a response
+#: at all. An agent needing custom fields from a list had to fall back to one
+#: request per record - which is exactly what happened in practice.
+#:
+#: Both are optional, so this is additive and cannot break an existing caller.
+INJECTED_SHAPING_PARAMS = {"summary_level", "fields"}
+
+
+def _shape(schema: dict) -> dict:
+    """The schema with descriptions and injected shaping params stripped.
+
+    What remains is the contract that must not have changed: which parameters
+    exist, their types, and which are required.
+    """
+    properties = {
+        name: {k: v for k, v in prop.items() if k != "description"}
+        for name, prop in (schema.get("properties") or {}).items()
+        if name not in INJECTED_SHAPING_PARAMS
+    }
+    return {**schema, "properties": properties}
+
+
+async def test_schemas_keep_their_contract(registered_tools, expected):
+    """Every parameter, type and required flag matches the pre-refactor baseline.
+
+    Descriptions and the injected shaping parameters are excluded - both are
+    deliberate improvements, covered by their own tests below.
+    """
+    checked = set(expected) & set(registered_tools)
     differences = [
         name
-        for name in sorted(set(expected) & set(registered_tools))
+        for name in sorted(checked)
+        if _shape(expected[name].get("input_schema") or {})
+        != _shape(registered_tools[name].parameters or {})
+    ]
+    assert not differences, f"tool schemas changed: {differences}"
+
+
+async def test_untouched_tools_are_still_byte_identical(registered_tools, expected):
+    """Tools with no deliberate change must match the baseline exactly."""
+    from cats_mcp.registry.build import shaping_params_for
+
+    unchanged = []
+    for name in sorted(set(expected) & set(registered_tools)):
+        if name in INTENTIONALLY_REWORDED:
+            continue
+        spec = REGISTRY.by_name(name)
+        if spec and shaping_params_for(spec):
+            continue  # gained shaping params, checked separately
+        unchanged.append(name)
+
+    differences = [
+        name
+        for name in unchanged
         if (expected[name].get("input_schema") or {}) != (registered_tools[name].parameters or {})
     ]
     assert not differences, f"tool schemas changed: {differences}"
+    assert unchanged, "expected some tools to be entirely untouched"
+
+
+async def test_every_shaped_tool_can_widen_its_response(registered_tools):
+    """The documented escape hatch must exist on the tools that need it."""
+    from cats_mcp.registry.models import ResponseStrategy
+
+    missing = []
+    for spec in REGISTRY:
+        if spec.response not in (ResponseStrategy.SUMMARY, ResponseStrategy.DETAIL):
+            continue
+        properties = (registered_tools[spec.name].parameters or {}).get("properties", {})
+        if not INJECTED_SHAPING_PARAMS <= set(properties):
+            missing.append(spec.name)
+    assert not missing, f"shaped tools with no way to widen the response: {missing}"
+
+
+async def test_shaping_params_are_optional(registered_tools):
+    """Additive only - an existing caller must not have to change."""
+    from cats_mcp.registry.models import ResponseStrategy
+
+    for spec in REGISTRY:
+        if spec.response not in (ResponseStrategy.SUMMARY, ResponseStrategy.DETAIL):
+            continue
+        schema = registered_tools[spec.name].parameters or {}
+        required = set(schema.get("required") or [])
+        assert not (INJECTED_SHAPING_PARAMS & required), spec.name
+
+
+async def test_reworded_tools_kept_their_schema_shape(registered_tools, expected):
+    """A better description must not quietly change the contract."""
+    differences = [
+        name
+        for name in sorted(INTENTIONALLY_REWORDED & set(registered_tools))
+        if _shape(expected[name].get("input_schema") or {})
+        != _shape(registered_tools[name].parameters or {})
+    ]
+    assert not differences, f"reworded tools changed shape, not just wording: {differences}"
+
+
+async def test_reworded_tools_actually_warn_about_tokenization(registered_tools):
+    """Guards the reason that exception exists at all."""
+    for name in sorted(INTENTIONALLY_REWORDED & set(registered_tools)):
+        properties = (registered_tools[name].parameters or {}).get("properties", {})
+        description = properties.get("filter_type", {}).get("description", "")
+        assert "tokenizes" in description, f"{name} lost its contains warning"
 
 
 # --- registry integrity ----------------------------------------------------

@@ -365,3 +365,72 @@ async def test_composite_is_registered_and_read_only(name):
     assert name in tools
     assert tools[name].annotations.read_only_hint is True
     assert tools[name].annotations.destructive_hint is False
+
+
+# --- summary levels ---------------------------------------------------------
+# Regression tests for a real failure: an agent screening Kamloops-area
+# candidates for Red Seal certification could not see custom fields in a list
+# result at any summary level, and fell back to one request per candidate. At
+# 500 requests/hour that is the difference between one call and fifty.
+
+
+def _shape(args, extra=None):
+    from cats_mcp.registry.catalog import REGISTRY
+    from cats_mcp.responses.shaping import shape_list
+
+    record = {
+        "id": 1,
+        "first_name": "Dana",
+        "city": "Kamloops",
+        "title": "Journeyman Welder",
+        "phone": "250-555-0100",
+        # 351005 is the Has Red Seal custom field on this account.
+        "custom_fields": {"351005": "Yes"},
+        "resume_text": "x" * 20_000,
+        "activities": [{"id": i} for i in range(50)],
+    }
+    record.update(extra or {})
+    payload = {"count": 1, "total": 1, "_links": {}, "_embedded": {"candidates": [record]}}
+    return shape_list(REGISTRY.by_name("list_candidates"), payload, args)["items"][0]
+
+
+def test_compact_excludes_custom_fields():
+    assert "custom_fields" not in _shape({})
+
+
+def test_standard_includes_custom_fields():
+    """Certifications are what an account screens on; one call, not fifty."""
+    assert _shape({"summary_level": "standard"})["custom_fields"]["351005"] == "Yes"
+
+
+def test_full_includes_custom_fields():
+    """The description promises complete records; it must not quietly omit them."""
+    assert "custom_fields" in _shape({"summary_level": "full"})
+
+
+def test_fields_all_is_honoured_rather_than_silently_ignored():
+    """The pre-refactor tools accepted fields='all' to mean the whole record."""
+    assert "custom_fields" in _shape({"fields": "all"})
+
+
+def test_explicitly_naming_custom_fields_works_at_any_level():
+    item = _shape({"fields": "id,custom_fields"})
+    assert set(item) == {"id", "custom_fields"}
+
+
+def test_unbounded_collections_never_leak_at_any_level():
+    """resume_text and activities have their own tools and no size bound."""
+    for args in ({}, {"summary_level": "standard"}, {"summary_level": "full"}, {"fields": "all"}):
+        item = _shape(args)
+        assert "resume_text" not in item, args
+        assert "activities" not in item, args
+
+
+def test_the_compact_note_explains_how_to_reach_custom_fields():
+    from cats_mcp.registry.catalog import REGISTRY
+    from cats_mcp.responses.shaping import shape_list
+
+    payload = {"count": 1, "total": 1, "_links": {}, "_embedded": {"candidates": [{"id": 1}]}}
+    note = shape_list(REGISTRY.by_name("list_candidates"), payload, {})["note"]
+    assert "custom fields" in note
+    assert "summary_level='standard'" in note

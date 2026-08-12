@@ -93,11 +93,15 @@ class ResponseStrategy(str, Enum):
     RAW      pass through unchanged. Only for genuinely small responses.
     SUMMARY  compact list shaping: selected fields, counts, pagination hints.
     DETAIL   single record, trimmed of nested collections unless requested.
+    BINARY   a file, delivered as MCP content the model can actually read.
     """
 
     RAW = "raw"
     SUMMARY = "summary"
     DETAIL = "detail"
+    #: The endpoint serves a file. Returned as MCP content the model can read -
+    #: a resume as a document, a thumbnail as an image - rather than as JSON.
+    BINARY = "binary"
 
 
 @dataclass(frozen=True)

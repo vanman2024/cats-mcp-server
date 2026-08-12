@@ -19,6 +19,7 @@ from cats_mcp.http.errors import CATSAPIError, to_tool_error
 from cats_mcp.registry.models import (
     Param,
     ParamLocation,
+    ResponseStrategy,
     Safety,
     ToolSpec,
     Transform,
@@ -38,15 +39,61 @@ _ANNOTATIONS: dict[Safety, dict[str, bool]] = {
 }
 
 
+#: Response-shaping parameters, injected into every tool that shapes its output.
+#:
+#: These belong to the response strategy, not to individual specs. Only 12 of
+#: 103 shaped tools declared `fields` and none declared `summary_level`, so the
+#: documented way to widen a response did not exist on 91 tools - an agent that
+#: needed custom fields from a list had no option but one request per record.
+_SHAPING_PARAMS: tuple[Param, ...] = (
+    Param(
+        name="summary_level",
+        annotation=str,
+        description=(
+            "How much of each record to return. 'compact' (default) gives a few "
+            "identifying fields. 'standard' adds custom fields - certifications, "
+            "trade qualifications and other account-specific data. 'full' returns "
+            "the whole record. Resumes, attachments, activities and pipelines are "
+            "never included at any level; each has its own tool."
+        ),
+        location=ParamLocation.SHAPING,
+        default="compact",
+    ),
+    Param(
+        name="fields",
+        annotation=str | None,
+        description=(
+            "Comma-separated field names to return, e.g. "
+            "'id,first_name,city,custom_fields'. Overrides summary_level. Use "
+            "'all' for the whole record."
+        ),
+        location=ParamLocation.SHAPING,
+        default=None,
+    ),
+)
+
+
+def shaping_params_for(spec: ToolSpec) -> tuple[Param, ...]:
+    """Shaping parameters a spec should expose but does not declare itself."""
+    if spec.response not in (ResponseStrategy.SUMMARY, ResponseStrategy.DETAIL):
+        return ()
+    declared = {p.name for p in spec.params}
+    return tuple(p for p in _SHAPING_PARAMS if p.name not in declared)
+
+
 def build_signature(spec: ToolSpec) -> tuple[list[inspect.Parameter], dict[str, Any]]:
     """Build the parameter list and annotations for a spec's tool function.
 
     Required parameters must precede optional ones or `inspect.Signature`
     rejects the result.
     """
-    ordered = sorted(spec.params, key=lambda p: (not p.required,))
+    all_params = spec.params + shaping_params_for(spec)
+    ordered = sorted(all_params, key=lambda p: (not p.required,))
     annotations: dict[str, Any] = {}
     sig_params: list[inspect.Parameter] = []
+    # A file-returning tool must not claim to return a dict, or FastMCP derives
+    # an output schema requiring structured JSON and rejects the file.
+    returns = Any if spec.response is ResponseStrategy.BINARY else dict[str, Any]
 
     for param in ordered:
         annotated = Annotated[param.annotation, Field(description=param.description)]
@@ -60,7 +107,7 @@ def build_signature(spec: ToolSpec) -> tuple[list[inspect.Parameter], dict[str, 
             )
         )
 
-    annotations["return"] = dict[str, Any]
+    annotations["return"] = returns
     return sig_params, annotations
 
 
@@ -102,11 +149,13 @@ def split_arguments(spec: ToolSpec, kwargs: dict[str, Any]) -> tuple[str, dict, 
     return endpoint, query, (body or None)
 
 
-def make_tool_function(spec: ToolSpec, client_getter: Callable[[], Any]) -> Callable:
+def make_tool_function(
+    spec: ToolSpec, client_getter: Callable[[], Any], ui_base_url: str = ""
+) -> Callable:
     """Create the async callable FastMCP will register for this spec."""
     sig_params, annotations = build_signature(spec)
 
-    async def impl(**kwargs: Any) -> dict[str, Any]:
+    async def impl(**kwargs: Any) -> Any:
         run_id = set_run_id()
         endpoint, query, body = split_arguments(spec, kwargs)
 
@@ -125,8 +174,15 @@ def make_tool_function(spec: ToolSpec, client_getter: Callable[[], Any]) -> Call
             )
 
         client = client_getter()
+        wants_bytes = spec.response is ResponseStrategy.BINARY
         try:
-            raw = await client.request(spec.method, endpoint, params=query or None, json=body)
+            raw = await client.request(
+                spec.method,
+                endpoint,
+                params=query or None,
+                json=body,
+                raw_bytes=wants_bytes,
+            )
         except CATSAPIError as exc:
             logger.warning(
                 "tool=%s endpoint=%s failed: %s request=%s",
@@ -137,14 +193,18 @@ def make_tool_function(spec: ToolSpec, client_getter: Callable[[], Any]) -> Call
             )
             raise to_tool_error(exc) from exc
 
+        if wants_bytes:
+            return _as_mcp_file(spec, raw, run_id)
+
         from cats_mcp.responses.shaping import shape_response
 
-        return shape_response(spec, raw, kwargs)
+        return shape_response(spec, raw, kwargs, ui_base_url)
 
     impl.__name__ = spec.name
     impl.__qualname__ = spec.name
     impl.__doc__ = spec.description
-    impl.__signature__ = inspect.Signature(sig_params, return_annotation=dict[str, Any])  # type: ignore[attr-defined]
+    returns = annotations["return"]
+    impl.__signature__ = inspect.Signature(sig_params, return_annotation=returns)  # type: ignore[attr-defined]
     impl.__annotations__ = annotations
     return impl
 
@@ -155,9 +215,10 @@ def register_spec(
     client_getter: Callable[[], Any],
     *,
     enforce_auth: bool,
+    ui_base_url: str = "",
 ) -> None:
     """Register one spec as a tool on the given FastMCP server."""
-    fn = make_tool_function(spec, client_getter)
+    fn = make_tool_function(spec, client_getter, ui_base_url)
 
     annotations = dict(_ANNOTATIONS[spec.safety])
     # CATS is an external system whose state changes outside this server.
@@ -181,6 +242,10 @@ def register_spec(
         },
     }
 
+    if spec.response is ResponseStrategy.BINARY:
+        # The result is an embedded file or image, not structured JSON.
+        kwargs["output_schema"] = None
+
     if enforce_auth:
         # Only applied when an MCP auth provider is configured. Attaching scope
         # checks to an unauthenticated server would deny every call, including
@@ -198,7 +263,71 @@ def register_all(
     client_getter: Callable[[], Any],
     *,
     enforce_auth: bool,
+    ui_base_url: str = "",
 ) -> int:
     for spec in specs:
-        register_spec(mcp, spec, client_getter, enforce_auth=enforce_auth)
+        register_spec(
+            mcp, spec, client_getter, enforce_auth=enforce_auth, ui_base_url=ui_base_url
+        )
     return len(specs)
+
+
+#: Base64 inflates a payload by roughly a third, and the result goes straight
+#: into a model's context. A 5MB cap comfortably covers resumes and portfolios
+#: while refusing anything that would swamp a conversation.
+MAX_BINARY_BYTES = 5 * 1024 * 1024
+
+
+def _as_mcp_file(spec: ToolSpec, payload: Any, run_id: str) -> Any:
+    """Turn a `BinaryPayload` into MCP content the model can actually read.
+
+    The previous implementation discarded the bytes and returned only a size and
+    a content type, which made every attachment unreadable - the note it
+    returned even pointed at the download tool that produced it.
+    """
+    from fastmcp.utilities.types import File, Image
+
+    from cats_mcp.http.client import BinaryPayload
+
+    if not isinstance(payload, BinaryPayload):
+        # The endpoint answered with JSON after all - an error envelope, most
+        # likely. Pass it through rather than pretending it is a file.
+        return payload
+
+    size = len(payload.content)
+    if size > MAX_BINARY_BYTES:
+        raise to_tool_error(
+            CATSAPIError(
+                f"{spec.name} returned {size / 1_048_576:.1f}MB, over the "
+                f"{MAX_BINARY_BYTES / 1_048_576:.0f}MB limit for inline content. "
+                f"Retrieve this file outside the conversation.",
+                endpoint=spec.endpoint,
+                correlation_id=run_id,
+            )
+        )
+
+    content_type = (payload.content_type or "").split(";")[0].strip().lower()
+    subtype = content_type.rsplit("/", 1)[-1] or "octet-stream"
+
+    if content_type.startswith("image/"):
+        return Image(data=payload.content, format=subtype)
+
+    return File(
+        data=payload.content,
+        format=_FORMAT_BY_CONTENT_TYPE.get(content_type, subtype),
+        name=payload.filename or spec.resource,
+    )
+
+
+#: Content types CATS serves for attachments, mapped to the format hint the
+#: model needs. Falling back to the MIME subtype alone yields useless values
+#: like "vnd.openxmlformats-officedocument.wordprocessingml.document".
+_FORMAT_BY_CONTENT_TYPE = {
+    "application/pdf": "pdf",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/rtf": "rtf",
+    "text/plain": "txt",
+    "text/html": "html",
+    "application/octet-stream": "bin",
+}

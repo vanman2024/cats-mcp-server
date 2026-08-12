@@ -76,6 +76,18 @@ class Settings(BaseSettings):
     api_base_url: str = "https://api.catsone.com/v3"
     api_key: str = ""
 
+    # --- CATS web UI --------------------------------------------------------
+    # The account's own CATS subdomain, e.g. https://acmecorp.catsone.com
+    #
+    # Set this and every list/detail result carries a working link to the record
+    # in the CATS UI. Left unset, no link is emitted at all - a missing link is
+    # recoverable, a wrong one gets pasted into a spreadsheet and quietly wastes
+    # someone's afternoon.
+    #
+    # The subdomain is account-specific. There is no way to derive it from the
+    # API base URL, which is the same for every customer.
+    ui_base_url: str = ""
+
     # --- Discovery ----------------------------------------------------------
     # SEARCH is the default because RAW must not be the public default: it
     # exposes the entire catalog to anyone who can reach the endpoint.

@@ -14,6 +14,7 @@ call, so no connection was ever reused.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Any
 
 import httpx2
@@ -33,6 +34,27 @@ logger = get_logger(__name__)
 
 #: Responses with no body. CATS uses 204 for successful deletes.
 _EMPTY_STATUSES = frozenset({204, 205})
+
+
+@dataclass(frozen=True)
+class BinaryPayload:
+    """A non-JSON response body, returned intact.
+
+    Only produced when a caller explicitly asks for bytes. Everything else gets
+    the JSON path, so a stray binary response can never be base64'd into a
+    model's context by accident.
+    """
+
+    content: bytes
+    content_type: str
+    filename: str | None = None
+
+    def __repr__(self) -> str:
+        # Never let megabytes of PDF end up in a log line or traceback.
+        return (
+            f"BinaryPayload(content_type={self.content_type!r}, "
+            f"bytes={len(self.content)}, filename={self.filename!r})"
+        )
 
 
 class CATSClient:
@@ -92,8 +114,14 @@ class CATSClient:
         params: dict[str, Any] | None = None,
         json: Any | None = None,
         context: Any | None = None,
+        raw_bytes: bool = False,
     ) -> Any:
         """Perform one CATS API call, with retries, and return the parsed body.
+
+        `raw_bytes=True` returns a `BinaryPayload` with the body intact, for
+        endpoints that serve files. It must be requested explicitly: the default
+        path summarises a non-JSON body instead, so a binary response can never
+        be base64'd into a model's context by accident.
 
         Raises `CATSAPIError` on unrecoverable failure. Callers that surface
         results to a model should convert via `errors.to_tool_error`.
@@ -110,7 +138,8 @@ class CATSClient:
         headers = {
             **credential.auth_header(),
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            # A file endpoint must not be told we only accept JSON.
+            "Accept": "*/*" if raw_bytes else "application/json",
         }
         # `params` values of None would be serialised as the string "None".
         clean_params = {k: v for k, v in params.items() if v is not None} if params else None
@@ -164,7 +193,7 @@ class CATSClient:
                         credential.account_label,
                         correlation_id,
                     )
-                    return self._parse(response)
+                    return self._parse(response, raw_bytes=raw_bytes)
 
                 if not is_retryable_status(response.status_code):
                     raise normalize_http_error(
@@ -225,10 +254,27 @@ class CATSClient:
         return f"{credential.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
 
     @staticmethod
-    def _parse(response: httpx2.Response) -> Any:
+    def _parse(response: httpx2.Response, *, raw_bytes: bool = False) -> Any:
         """Parse a successful response, tolerating empty and non-JSON bodies."""
         if response.status_code in _EMPTY_STATUSES or not response.content:
             return {"status": "success", "status_code": response.status_code}
+
+        if raw_bytes:
+            # A file endpoint answering with JSON is telling us something - an
+            # error envelope, or "still processing" - not handing over a file.
+            # Wrapping that as a downloadable .json blob helps nobody.
+            if "json" in response.headers.get("Content-Type", "").lower():
+                try:
+                    return response.json()
+                except ValueError:
+                    pass
+            return BinaryPayload(
+                content=response.content,
+                content_type=response.headers.get(
+                    "Content-Type", "application/octet-stream"
+                ),
+                filename=_filename_from(response.headers.get("Content-Disposition")),
+            )
         try:
             return response.json()
         except ValueError:
@@ -240,7 +286,18 @@ class CATSClient:
                 "content_type": content_type,
                 "content_length": len(response.content),
                 "note": (
-                    "Response body is not JSON. Use the dedicated download tool to "
-                    "retrieve the file rather than reading it through this tool."
+                    "This endpoint returned a file rather than JSON. Use "
+                    "download_attachment to retrieve an attachment's contents."
                 ),
             }
+
+
+def _filename_from(disposition: str | None) -> str | None:
+    """Pull a filename out of a Content-Disposition header, if present."""
+    if not disposition:
+        return None
+    for part in disposition.split(";"):
+        part = part.strip()
+        if part.lower().startswith("filename="):
+            return part.split("=", 1)[1].strip().strip('"') or None
+    return None
