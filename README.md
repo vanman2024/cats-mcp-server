@@ -56,9 +56,9 @@ deployment environment.
 | `CATS_TOOLSETS` | all | e.g. `candidates,jobs,pipelines` |
 | `CATS_TRANSPORT` | `stdio` | `stdio` or `http` |
 | `CATS_HOST` / `CATS_PORT` | `0.0.0.0` / `8000` | HTTP bind |
-| `CATS_AUTH_JWKS_URI` | - | JWKS endpoint; **required for HTTP** |
+| `CATS_AUTH_MODE` | - | `platform`, `jwt` or `none`; **required for HTTP** |
+| `CATS_AUTH_JWKS_URI` | - | JWKS endpoint, for `jwt` mode |
 | `CATS_AUTH_ISSUER` / `CATS_AUTH_AUDIENCE` | - | JWT claims to verify |
-| `CATS_ALLOW_UNAUTHENTICATED_HTTP` | `false` | local development escape hatch |
 | `CATS_SEARCH_MAX_RESULTS` | `5` | results per `search_tools` call |
 | `LOG_LEVEL` | `INFO` | logging verbosity |
 
@@ -103,24 +103,38 @@ uv pip install -e '.[code-mode]'
 
 ## Authentication
 
-An HTTP deployment **refuses to start without authentication**. It exposes
-destructive tools; over a network it must verify who is calling.
+Serving over HTTP requires saying **who verifies the caller**, via
+`CATS_AUTH_MODE`. There is no default, because guessing wrong is harmful in
+both directions: assume a gateway that is not there and destructive tools sit
+on an open URL; assume none and a correctly-fronted deployment fails to start.
+
+| Mode | Meaning | Use when |
+| --- | --- | --- |
+| `platform` | something in front authenticates first | hosted on Prefect Horizon, or behind a reverse proxy |
+| `jwt` | this server verifies bearer tokens itself | self-hosted with nothing in front |
+| `none` | nobody authenticates | local development only |
+
+**On Horizon, use `platform`.** Its gateway "runs before your server code" and
+authentication is enabled by default for hosted endpoints, so a rejected caller
+never reaches this process.
+
+For `jwt`:
 
 ```bash
+CATS_AUTH_MODE=jwt
 CATS_AUTH_JWKS_URI=https://your-issuer/.well-known/jwks.json
 CATS_AUTH_ISSUER=https://your-issuer/
 CATS_AUTH_AUDIENCE=cats-mcp
 ```
 
-For local development only: `CATS_ALLOW_UNAUTHENTICATED_HTTP=true`.
+stdio needs no mode - the transport is a pipe to a process you started.
 
-stdio needs no MCP-layer auth - the transport is a pipe to a process you
-started.
-
-Scopes follow the safety class: `cats:read`, `cats:write`, `cats:destructive`,
-`cats:bulk`, `cats:admin`. Authorization filters **discovery as well as
-execution**: a read-only caller cannot see destructive tools in a listing, in
-search results, or reach them through `call_tool`.
+**Per-tool scopes** (`cats:read`, `cats:write`, `cats:destructive`,
+`cats:bulk`, `cats:admin`) apply in `jwt` mode, where this server sees verified
+claims. Authorization then filters **discovery as well as execution**: a
+read-only caller cannot see destructive tools in a listing, in search results,
+or reach them through `call_tool`. Under `platform`, the gateway authenticates
+but this server sees no claims, so authorization is the gateway's to enforce.
 
 ## Working with candidate data
 

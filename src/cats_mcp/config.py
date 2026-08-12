@@ -41,6 +41,29 @@ class Transport(str, Enum):
     HTTP = "http"
 
 
+class AuthMode(str, Enum):
+    """Who verifies the MCP caller.
+
+    PLATFORM  Something in front of this server authenticates before traffic
+              arrives - a managed gateway or a reverse proxy. This is how
+              Horizon works: "the gateway runs before your server code", and
+              authentication is on by default for hosted endpoints. The server
+              trusts that and says so at startup.
+    JWT       This server verifies bearer tokens itself, via CATS_AUTH_JWKS_URI.
+              For self-hosting with nothing in front.
+    NONE      Nobody verifies anything. Local development only.
+
+    There is deliberately no "allow unauthenticated" boolean. A flag that reads
+    as "we gave up on auth" cannot distinguish a correctly-fronted deployment
+    from an exposed one, and the two need very different reactions from whoever
+    reads the config next.
+    """
+
+    PLATFORM = "platform"
+    JWT = "jwt"
+    NONE = "none"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="CATS_",
@@ -84,13 +107,18 @@ class Settings(BaseSettings):
     model_page_size: int = Field(default=10, ge=1, le=100)
 
     # --- MCP authentication -------------------------------------------------
-    # When unset the server refuses to start in HTTP transport unless
-    # `allow_unauthenticated_http` is explicitly set. Local stdio use needs no
-    # MCP-layer auth because the transport is already private to the user.
+    # Left unset deliberately. When this server is the one serving HTTP, an
+    # unset mode is refused rather than defaulted, because guessing wrong in
+    # either direction is bad: assume a gateway that is not there and
+    # destructive tools sit on an open URL; assume none and a correctly-fronted
+    # deployment fails to start.
+    #
+    # stdio never needs a mode - the transport is a pipe to a process the user
+    # already started.
+    auth_mode: AuthMode | None = None
     auth_jwks_uri: str = ""
     auth_issuer: str = ""
     auth_audience: str = ""
-    allow_unauthenticated_http: bool = False
 
     @field_validator("api_key", "auth_jwks_uri", "auth_issuer", "auth_audience")
     @classmethod

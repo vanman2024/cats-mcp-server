@@ -131,10 +131,11 @@ Authorization filters **both** listing and execution, and this is verified by
 test: a read-only caller searching "delete a candidate" gets nothing back, and
 cannot reach the tool through `call_tool` either.
 
-**An HTTP deployment refuses to start without authentication.** Set
-`CATS_AUTH_JWKS_URI`, or `CATS_ALLOW_UNAUTHENTICATED_HTTP=true` for local
-development only. stdio needs no MCP-layer auth: the transport is a pipe to a
-process the user already started.
+**Serving HTTP requires an explicit `CATS_AUTH_MODE`** - `platform` (a
+gateway in front authenticates, which is how Horizon works), `jwt` (this server
+verifies tokens itself), or `none` (local development). There is no default:
+assuming a gateway that is not there exposes destructive tools, and assuming
+none breaks a correctly-fronted deployment. stdio needs no mode.
 
 Scopes follow the safety classification: `cats:read`, `cats:write`,
 `cats:destructive`, `cats:bulk`, `cats:admin`.

@@ -17,7 +17,7 @@ import httpx2
 import pytest
 from fastmcp import Client
 
-from cats_mcp.config import DiscoveryMode, Settings, Transport
+from cats_mcp.config import AuthMode, DiscoveryMode, Settings, Transport
 from cats_mcp.credentials.base import CATSCredential, CredentialProvider
 from cats_mcp.discovery.profiles import PINNED_TOOLS
 from cats_mcp.http.client import CATSClient
@@ -299,21 +299,68 @@ async def test_credentials_never_leak_through_a_tool_result():
 # --- deployment safety -----------------------------------------------------
 
 
-def test_http_without_auth_refuses_to_start():
-    """The deployed server currently listens on 0.0.0.0:3000 with no auth."""
+def test_http_refuses_to_start_without_an_explicit_auth_mode():
+    """The pre-refactor server listened on 0.0.0.0:3000 with no auth at all.
+
+    There is no default, because guessing wrong is harmful in both directions:
+    assume a gateway that is not there and destructive tools sit on an open
+    URL; assume none and a correctly-fronted deployment fails to start.
+    """
     from cats_mcp.auth.verifier import InsecureDeploymentError
 
     with pytest.raises(InsecureDeploymentError) as excinfo:
         build_server(transport=Transport.HTTP)
-    assert "CATS_AUTH_JWKS_URI" in str(excinfo.value)
+
+    message = str(excinfo.value)
+    for mode in ("platform", "jwt", "none"):
+        assert mode in message, "the error must name every option"
 
 
-def test_http_without_auth_can_be_opted_into_explicitly():
-    server = build_server(transport=Transport.HTTP, allow_unauthenticated_http=True)
+def test_platform_mode_starts_and_records_the_assumption():
+    """Horizon authenticates at its gateway before reaching server code."""
+    server = build_server(transport=Transport.HTTP, auth_mode=AuthMode.PLATFORM)
     assert server is not None
 
 
-def test_stdio_does_not_require_auth():
+def test_platform_mode_does_not_enforce_tool_scopes():
+    """The gateway authenticates, but this server sees no claims to scope on.
+
+    Attaching require_scopes with no verifier would deny every call.
+    """
+    from cats_mcp.auth.verifier import auth_is_enforced
+
+    settings = Settings(
+        api_key="k", transport=Transport.HTTP, auth_mode=AuthMode.PLATFORM
+    )
+    assert auth_is_enforced(settings) is False
+
+
+def test_jwt_mode_requires_a_jwks_uri():
+    from cats_mcp.auth.verifier import InsecureDeploymentError
+
+    with pytest.raises(InsecureDeploymentError) as excinfo:
+        build_server(transport=Transport.HTTP, auth_mode=AuthMode.JWT)
+    assert "CATS_AUTH_JWKS_URI" in str(excinfo.value)
+
+
+def test_a_jwks_uri_alone_implies_jwt_mode():
+    """Configuring key verification is an unambiguous statement of intent."""
+    from cats_mcp.auth.verifier import auth_is_enforced
+
+    settings = Settings(
+        api_key="k",
+        transport=Transport.HTTP,
+        auth_jwks_uri="https://issuer.example/.well-known/jwks.json",
+    )
+    assert auth_is_enforced(settings) is True
+
+
+def test_none_mode_starts_for_local_development():
+    server = build_server(transport=Transport.HTTP, auth_mode=AuthMode.NONE)
+    assert server is not None
+
+
+def test_stdio_does_not_require_an_auth_mode():
     """stdio is a pipe to a process the user started; there is no network surface."""
     server = build_server(transport=Transport.STDIO)
     assert server is not None

@@ -21,7 +21,7 @@ import pytest
 from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 from fastmcp.utilities.tests import asgi_client
 
-from cats_mcp.config import DiscoveryMode, Settings
+from cats_mcp.config import AuthMode, DiscoveryMode, Settings
 from cats_mcp.credentials.base import CATSCredential, CredentialProvider
 from cats_mcp.http.client import CATSClient
 from cats_mcp.registry.models import Safety
@@ -55,7 +55,7 @@ def verifier() -> StaticTokenVerifier:
 
 
 def build_authed_server(**overrides):
-    settings = Settings(api_key="test-key", allow_unauthenticated_http=True, **overrides)
+    settings = Settings(api_key="test-key", auth_mode=AuthMode.JWT, **overrides)
     client = CATSClient(
         settings,
         StubCredentials(),
