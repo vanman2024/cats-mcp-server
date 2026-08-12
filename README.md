@@ -139,12 +139,24 @@ but this server sees no claims, so authorization is the gateway's to enforce.
 ## Working with candidate data
 
 List and search tools return compact summaries by default - ids plus a small
-field projection, with `count`, `total`, `has_more` and `next_page`. Resumes,
-attachments, activities, pipelines and custom fields are never included in a
-list result; each has a dedicated tool.
+field projection, with `count`, `total`, `has_more` and `next_page`.
 
-Widen deliberately with `summary_level='full'`, `fields='a,b,c'`, `page` and
-`per_page`.
+Widen deliberately:
+
+| Level | Returns |
+| --- | --- |
+| `compact` (default) | a handful of identifying fields |
+| `standard` | the record, including **custom fields** - certifications, trade qualifications, screening answers |
+| `full` | the whole record |
+| `fields='a,b,c'` | exactly those columns |
+
+Custom fields are where account-specific screening data lives, so reach for
+`summary_level='standard'` rather than fetching each candidate individually -
+that is the difference between one request and fifty against a 500/hour budget.
+
+Resumes, attachments, activities, pipelines and applications are never included
+in a list at any level. They are unbounded in size and each has its own tool -
+`download_attachment` returns the actual document for the model to read.
 
 ## Rate limits
 

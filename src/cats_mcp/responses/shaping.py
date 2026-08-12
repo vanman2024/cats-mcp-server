@@ -55,8 +55,9 @@ SUMMARY_FIELDS: dict[str, list[str]] = {
     "work_history": ["id", "company_name", "title", "start_date", "end_date"],
 }
 
-#: Never returned in a list result at any summary level. These are the fields
-#: that make a candidate record enormous, and each has a dedicated tool.
+#: Unbounded sub-collections. Excluded from list results at every summary level
+#: because one of them can be tens of kilobytes per record, and each has a
+#: dedicated tool for retrieving it deliberately.
 _NEVER_IN_LISTS = frozenset(
     {
         "resume",
@@ -65,11 +66,18 @@ _NEVER_IN_LISTS = frozenset(
         "activities",
         "pipelines",
         "applications",
-        "custom_fields",
         "work_history",
         "notes_html",
     }
 )
+
+#: Bounded but noisy: excluded from `compact`, included from `standard` up.
+#:
+#: Custom fields hold the data an account actually screens on - certifications,
+#: trade qualifications, availability - so making them unreachable in a list
+#: forces one request per candidate to answer "who has a Red Seal". At 500
+#: requests/hour that is the difference between one call and fifty.
+_EXCLUDED_FROM_COMPACT = frozenset({"custom_fields"})
 
 #: HAL plumbing. Useful to the API, noise to a model.
 _HAL_KEYS = frozenset({"_links", "_embedded"})
@@ -81,12 +89,16 @@ def _strip_hal(item: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in item.items() if k not in _HAL_KEYS}
 
 
-def _project(item: Any, fields: list[str] | None) -> Any:
+def _project(item: Any, fields: list[str] | None, *, drop_custom_fields: bool = False) -> Any:
     if not isinstance(item, dict):
         return item
     cleaned = _strip_hal(item)
     if fields is None:
-        return {k: v for k, v in cleaned.items() if k not in _NEVER_IN_LISTS}
+        excluded = _NEVER_IN_LISTS
+        if drop_custom_fields:
+            excluded = excluded | _EXCLUDED_FROM_COMPACT
+        return {k: v for k, v in cleaned.items() if k not in excluded}
+    # An explicit field list is an explicit choice; honour it exactly.
     projected = {k: cleaned.get(k) for k in fields if k in cleaned}
     if "id" in cleaned:
         projected["id"] = cleaned["id"]
@@ -133,11 +145,12 @@ def _next_page(raw: dict[str, Any]) -> int | None:
 def _fields_for(spec: ToolSpec, summary_level: str, explicit: str | None) -> list[str] | None:
     if explicit:
         requested = [f.strip() for f in explicit.split(",") if f.strip()]
+        # `fields="all"` is handled by the caller, which promotes it to
+        # summary_level="full". Reaching here with it would silently return a
+        # compact record to someone who asked for everything.
         if requested and requested != ["all"]:
             return requested
-    if summary_level == "full":
-        return None
-    if summary_level == "standard":
+    if summary_level in ("full", "standard"):
         return None
     return SUMMARY_FIELDS.get(spec.resource)
 
@@ -151,8 +164,18 @@ def shape_list(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> dict[str,
     if summary_level not in _SUMMARY_LEVELS:
         summary_level = "compact"
 
-    fields = _fields_for(spec, summary_level, call_args.get("fields"))
-    items = [_project(item, fields) for item in _extract_items(raw, spec.collection_key)]
+    explicit_fields = call_args.get("fields")
+    # The pre-refactor tools accepted fields="all" to mean "the whole record".
+    # Honour it rather than silently returning a compact result to a caller who
+    # explicitly asked for everything.
+    if explicit_fields and explicit_fields.strip().lower() == "all":
+        summary_level = "full"
+
+    fields = _fields_for(spec, summary_level, explicit_fields)
+    items = [
+        _project(item, fields, drop_custom_fields=summary_level == "compact")
+        for item in _extract_items(raw, spec.collection_key)
+    ]
 
     total = raw.get("total")
     next_page = _next_page(raw)
@@ -170,8 +193,11 @@ def shape_list(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> dict[str,
     if summary_level == "compact" and fields:
         result["note"] = (
             f"Compact view: {', '.join(fields)}. "
-            f"Pass summary_level='full' for complete records, fields='a,b,c' to "
-            f"choose columns, or use the dedicated get/detail tool for one record."
+            f"Pass summary_level='standard' to include custom fields such as "
+            f"certifications and trade qualifications, summary_level='full' for "
+            f"the whole record, or fields='a,b,c' to choose columns. Resumes, "
+            f"attachments, activities and pipelines are never included in a list "
+            f"- each has its own tool."
         )
     return result
 
