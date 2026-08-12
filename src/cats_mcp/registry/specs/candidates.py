@@ -1284,7 +1284,7 @@ SPECS: list[ToolSpec] = [
         endpoint="/candidates/{candidate_id}/thumbnail",
         description="Get a candidate's thumbnail image. Use this when you already have a candidate id and need its detail.\n\nWraps: GET /candidates/{candidate_id}/thumbnail",
         safety=Safety.READ,
-        response=ResponseStrategy.DETAIL,
+        response=ResponseStrategy.BINARY,
         toolset="candidates",
         params=(
             Param(

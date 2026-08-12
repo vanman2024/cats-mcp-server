@@ -928,7 +928,7 @@ SPECS: list[ToolSpec] = [
         endpoint="/companies/{company_id}/thumbnail",
         description="Get a company's thumbnail image. Use this when you already have a company id and need its detail.\n\nWraps: GET /companies/{company_id}/thumbnail",
         safety=Safety.READ,
-        response=ResponseStrategy.DETAIL,
+        response=ResponseStrategy.BINARY,
         toolset="companies",
         params=(
             Param(

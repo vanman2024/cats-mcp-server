@@ -19,6 +19,7 @@ from cats_mcp.http.errors import CATSAPIError, to_tool_error
 from cats_mcp.registry.models import (
     Param,
     ParamLocation,
+    ResponseStrategy,
     Safety,
     ToolSpec,
     Transform,
@@ -47,6 +48,9 @@ def build_signature(spec: ToolSpec) -> tuple[list[inspect.Parameter], dict[str, 
     ordered = sorted(spec.params, key=lambda p: (not p.required,))
     annotations: dict[str, Any] = {}
     sig_params: list[inspect.Parameter] = []
+    # A file-returning tool must not claim to return a dict, or FastMCP derives
+    # an output schema requiring structured JSON and rejects the file.
+    returns = Any if spec.response is ResponseStrategy.BINARY else dict[str, Any]
 
     for param in ordered:
         annotated = Annotated[param.annotation, Field(description=param.description)]
@@ -60,7 +64,7 @@ def build_signature(spec: ToolSpec) -> tuple[list[inspect.Parameter], dict[str, 
             )
         )
 
-    annotations["return"] = dict[str, Any]
+    annotations["return"] = returns
     return sig_params, annotations
 
 
@@ -106,7 +110,7 @@ def make_tool_function(spec: ToolSpec, client_getter: Callable[[], Any]) -> Call
     """Create the async callable FastMCP will register for this spec."""
     sig_params, annotations = build_signature(spec)
 
-    async def impl(**kwargs: Any) -> dict[str, Any]:
+    async def impl(**kwargs: Any) -> Any:
         run_id = set_run_id()
         endpoint, query, body = split_arguments(spec, kwargs)
 
@@ -125,8 +129,15 @@ def make_tool_function(spec: ToolSpec, client_getter: Callable[[], Any]) -> Call
             )
 
         client = client_getter()
+        wants_bytes = spec.response is ResponseStrategy.BINARY
         try:
-            raw = await client.request(spec.method, endpoint, params=query or None, json=body)
+            raw = await client.request(
+                spec.method,
+                endpoint,
+                params=query or None,
+                json=body,
+                raw_bytes=wants_bytes,
+            )
         except CATSAPIError as exc:
             logger.warning(
                 "tool=%s endpoint=%s failed: %s request=%s",
@@ -137,6 +148,9 @@ def make_tool_function(spec: ToolSpec, client_getter: Callable[[], Any]) -> Call
             )
             raise to_tool_error(exc) from exc
 
+        if wants_bytes:
+            return _as_mcp_file(spec, raw, run_id)
+
         from cats_mcp.responses.shaping import shape_response
 
         return shape_response(spec, raw, kwargs)
@@ -144,7 +158,8 @@ def make_tool_function(spec: ToolSpec, client_getter: Callable[[], Any]) -> Call
     impl.__name__ = spec.name
     impl.__qualname__ = spec.name
     impl.__doc__ = spec.description
-    impl.__signature__ = inspect.Signature(sig_params, return_annotation=dict[str, Any])  # type: ignore[attr-defined]
+    returns = annotations["return"]
+    impl.__signature__ = inspect.Signature(sig_params, return_annotation=returns)  # type: ignore[attr-defined]
     impl.__annotations__ = annotations
     return impl
 
@@ -181,6 +196,10 @@ def register_spec(
         },
     }
 
+    if spec.response is ResponseStrategy.BINARY:
+        # The result is an embedded file or image, not structured JSON.
+        kwargs["output_schema"] = None
+
     if enforce_auth:
         # Only applied when an MCP auth provider is configured. Attaching scope
         # checks to an unauthenticated server would deny every call, including
@@ -202,3 +221,64 @@ def register_all(
     for spec in specs:
         register_spec(mcp, spec, client_getter, enforce_auth=enforce_auth)
     return len(specs)
+
+
+#: Base64 inflates a payload by roughly a third, and the result goes straight
+#: into a model's context. A 5MB cap comfortably covers resumes and portfolios
+#: while refusing anything that would swamp a conversation.
+MAX_BINARY_BYTES = 5 * 1024 * 1024
+
+
+def _as_mcp_file(spec: ToolSpec, payload: Any, run_id: str) -> Any:
+    """Turn a `BinaryPayload` into MCP content the model can actually read.
+
+    The previous implementation discarded the bytes and returned only a size and
+    a content type, which made every attachment unreadable - the note it
+    returned even pointed at the download tool that produced it.
+    """
+    from fastmcp.utilities.types import File, Image
+
+    from cats_mcp.http.client import BinaryPayload
+
+    if not isinstance(payload, BinaryPayload):
+        # The endpoint answered with JSON after all - an error envelope, most
+        # likely. Pass it through rather than pretending it is a file.
+        return payload
+
+    size = len(payload.content)
+    if size > MAX_BINARY_BYTES:
+        raise to_tool_error(
+            CATSAPIError(
+                f"{spec.name} returned {size / 1_048_576:.1f}MB, over the "
+                f"{MAX_BINARY_BYTES / 1_048_576:.0f}MB limit for inline content. "
+                f"Retrieve this file outside the conversation.",
+                endpoint=spec.endpoint,
+                correlation_id=run_id,
+            )
+        )
+
+    content_type = (payload.content_type or "").split(";")[0].strip().lower()
+    subtype = content_type.rsplit("/", 1)[-1] or "octet-stream"
+
+    if content_type.startswith("image/"):
+        return Image(data=payload.content, format=subtype)
+
+    return File(
+        data=payload.content,
+        format=_FORMAT_BY_CONTENT_TYPE.get(content_type, subtype),
+        name=payload.filename or spec.resource,
+    )
+
+
+#: Content types CATS serves for attachments, mapped to the format hint the
+#: model needs. Falling back to the MIME subtype alone yields useless values
+#: like "vnd.openxmlformats-officedocument.wordprocessingml.document".
+_FORMAT_BY_CONTENT_TYPE = {
+    "application/pdf": "pdf",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/rtf": "rtf",
+    "text/plain": "txt",
+    "text/html": "html",
+    "application/octet-stream": "bin",
+}

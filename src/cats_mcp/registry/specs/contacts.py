@@ -872,7 +872,7 @@ SPECS: list[ToolSpec] = [
         endpoint="/contacts/{contact_id}/thumbnail",
         description="Get a contact's thumbnail image. Use this when you already have a contact id and need its detail.\n\nWraps: GET /contacts/{contact_id}/thumbnail",
         safety=Safety.READ,
-        response=ResponseStrategy.DETAIL,
+        response=ResponseStrategy.BINARY,
         toolset="contacts",
         params=(
             Param(
