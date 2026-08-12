@@ -10,7 +10,17 @@ tool registration used to happen only inside `if __name__ == "__main__"`, so
 
 from __future__ import annotations
 
-from cats_mcp.app import main, mcp, settings
+import sys
+from pathlib import Path
+
+# Work whether or not the project was installed as a package. A deployment that
+# only installs a dependency file leaves `src/` off the path, and this file
+# would then fail at import with a bare ModuleNotFoundError.
+_SRC = Path(__file__).resolve().parent / "src"
+if _SRC.is_dir() and str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from cats_mcp.app import main, mcp, settings  # noqa: E402
 
 __all__ = ["main", "mcp", "settings"]
 
