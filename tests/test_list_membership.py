@@ -199,7 +199,9 @@ def test_candidate_id_is_recovered_from_a_link_href():
 
 
 def test_candidate_id_is_recovered_from_an_embedded_record():
-    row = _row({"id": ROW_ID, "_embedded": {"candidate": {"id": CANDIDATE_ID, "first_name": "Brian"}}})
+    row = _row(
+        {"id": ROW_ID, "_embedded": {"candidate": {"id": CANDIDATE_ID, "first_name": "Brian"}}}
+    )
     assert row["candidate_id"] == CANDIDATE_ID
 
 
