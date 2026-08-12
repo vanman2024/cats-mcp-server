@@ -177,10 +177,14 @@ logs, tests and design docs - cannot recur.
 
 ## Out of scope
 
-StaffHive-specific logic. See `docs/archive/CATS-INTELLIGENCE-SYSTEM.md` for the
+StaffHive-specific logic. See `archive/CATS-INTELLIGENCE-SYSTEM.md` for the
 earlier product exploration and why it does not belong here.
 
 ## Further reading
 
-- `00-audit-gap-report.md` - what was wrong before the refactor, with evidence
-- `01-module-structure.md` - the structure proposal and migration risks
+- [DEPLOYMENT.md](DEPLOYMENT.md) - running it locally, on Horizon, or self-hosted
+- [TOOLS.md](TOOLS.md) - generated tool, resource and prompt inventory
+- `archive/2026-08-11-audit-gap-report.md` - what was wrong before the refactor,
+  with evidence. The findings it records are why most of this design exists.
+- `archive/2026-08-11-module-structure-proposal.md` - the structure proposal and
+  the migration risks identified up front

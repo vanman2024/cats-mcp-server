@@ -16,4 +16,4 @@ in the CATS API v3 and fail at runtime:
 - `get_me` -> `GET /users/current` returns 404. Use `get_site`.
 - `authorize_user` -> `POST /authorization` is not a CATS endpoint.
 
-See `docs/architecture/00-audit-gap-report.md` for the full analysis.
+See `docs/archive/2026-08-11-audit-gap-report.md` for the full analysis.

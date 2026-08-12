@@ -30,7 +30,7 @@ and safety classification.
 
 It does **not** own recruiting workflows, agent orchestration, memory, outreach,
 scheduling, candidate ranking, or a frontend. Those belong to the calling
-orchestrator. See [docs/architecture/README.md](docs/architecture/README.md).
+orchestrator. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Install
 
@@ -178,8 +178,12 @@ into a working tool; there is no per-tool request code to write.
 
 ## Documentation
 
-- [docs/architecture/README.md](docs/architecture/README.md) - architecture and boundaries
-- [docs/TOOLS.md](docs/TOOLS.md) - generated tool inventory
-- [docs/architecture/00-audit-gap-report.md](docs/architecture/00-audit-gap-report.md) - pre-refactor audit
-- [docs/CREDENTIAL-SAFETY.md](docs/CREDENTIAL-SAFETY.md) - credential handling
-- [DEPLOYMENT.md](DEPLOYMENT.md) - deployment guide
+| Document | Covers |
+| --- | --- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | what this owns and does not, consumers, design decisions |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | running it locally, on Horizon, or self-hosted |
+| [docs/TOOLS.md](docs/TOOLS.md) | tool, resource and prompt inventory (generated) |
+| [docs/CREDENTIAL-SAFETY.md](docs/CREDENTIAL-SAFETY.md) | secret handling and the pre-commit guard |
+
+`docs/archive/` holds superseded material, including the pre-refactor audit that
+motivated this design.

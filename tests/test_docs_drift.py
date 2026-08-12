@@ -12,6 +12,8 @@ import re
 import subprocess
 import sys
 
+import pytest
+
 from cats_mcp.registry.catalog import REGISTRY
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -90,6 +92,72 @@ def test_readme_quotes_no_stale_tool_counts():
 def test_readme_points_at_the_generated_doc():
     text = README.read_text(encoding="utf-8")
     assert "docs/TOOLS.md" in text
+
+
+#: The documentation that is meant to be current. Everything else lives in
+#: docs/archive/ and is allowed to be wrong about the present.
+LIVING_DOCS = [
+    "README.md",
+    "docs/ARCHITECTURE.md",
+    "docs/DEPLOYMENT.md",
+    "docs/TOOLS.md",
+    "docs/CREDENTIAL-SAFETY.md",
+]
+
+
+@pytest.mark.parametrize("name", LIVING_DOCS)
+def test_living_doc_exists(name):
+    assert (ROOT / name).is_file()
+
+
+@pytest.mark.parametrize("name", LIVING_DOCS)
+def test_relative_links_resolve(name):
+    """Consolidating docs moved files; a dead link is how that goes unnoticed."""
+    doc = ROOT / name
+    broken = []
+    for text, target in re.findall(r"\[([^\]]+)\]\(([^)#]+)\)", doc.read_text(encoding="utf-8")):
+        if target.startswith(("http://", "https://", "mailto:")):
+            continue
+        if not (doc.parent / target).resolve().exists():
+            broken.append(f"{text} -> {target}")
+    assert not broken, f"{name} has dead links: {broken}"
+
+
+def test_no_stray_markdown_at_the_repository_root():
+    """Only README belongs at the root; the rest lives under docs/."""
+    found = {p.name for p in ROOT.glob("*.md")}
+    assert found == {"README.md"}, f"unexpected root docs: {sorted(found - {'README.md'})}"
+
+
+@pytest.mark.parametrize("name", LIVING_DOCS)
+def test_living_docs_do_not_reference_archived_modules(name):
+    """The toolsets modules and the old cloud docs are gone."""
+    text = (ROOT / name).read_text(encoding="utf-8")
+    for stale in (
+        "toolsets_default",
+        "toolsets_recruiting",
+        "toolsets_data",
+        "response_helpers",
+        "--list-toolsets",
+        "FASTMCP_CLOUD_",
+        "ENDPOINT_COVERAGE_REPORT",
+    ):
+        assert stale not in text, f"{name} references removed {stale}"
+
+
+def test_env_example_covers_every_required_setting():
+    """A reader copying .env.example should not have to guess."""
+    text = (ROOT / ".env.example").read_text(encoding="utf-8")
+    for variable in ("CATS_API_KEY", "CATS_DISCOVERY_MODE", "CATS_AUTH_MODE", "CATS_TRANSPORT"):
+        assert variable in text, f".env.example does not mention {variable}"
+
+
+def test_env_example_contains_no_real_looking_credential():
+    text = (ROOT / ".env.example").read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if line.startswith("CATS_API_KEY="):
+            value = line.split("=", 1)[1]
+            assert "your_" in value or not value, f"suspicious value in .env.example: {value}"
 
 
 def test_readme_does_not_reference_deleted_modules():
