@@ -116,7 +116,13 @@ def create_server(
         lifespan=lifespan,
     )
 
-    registered = register_all(mcp, selected, client_getter, enforce_auth=enforce_auth)
+    registered = register_all(
+        mcp,
+        selected,
+        client_getter,
+        enforce_auth=enforce_auth,
+        ui_base_url=settings.ui_base_url,
+    )
 
     # Composite read primitives, registered only alongside a full catalog.
     # They span resources, so exposing them under a narrowed CATS_TOOLSETS

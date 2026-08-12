@@ -124,23 +124,93 @@ INTENTIONALLY_REWORDED = {
 }
 
 
+#: Response-shaping parameters now injected into every SUMMARY/DETAIL tool.
+#:
+#: Added deliberately: only 12 of 103 shaped tools declared `fields` and none
+#: declared `summary_level`, so on 91 tools there was no way to widen a response
+#: at all. An agent needing custom fields from a list had to fall back to one
+#: request per record - which is exactly what happened in practice.
+#:
+#: Both are optional, so this is additive and cannot break an existing caller.
+INJECTED_SHAPING_PARAMS = {"summary_level", "fields"}
+
+
 def _shape(schema: dict) -> dict:
-    """The schema with parameter descriptions stripped, leaving the contract."""
+    """The schema with descriptions and injected shaping params stripped.
+
+    What remains is the contract that must not have changed: which parameters
+    exist, their types, and which are required.
+    """
     properties = {
         name: {k: v for k, v in prop.items() if k != "description"}
         for name, prop in (schema.get("properties") or {}).items()
+        if name not in INJECTED_SHAPING_PARAMS
     }
     return {**schema, "properties": properties}
 
 
-async def test_schemas_are_byte_identical(registered_tools, expected):
-    checked = (set(expected) & set(registered_tools)) - INTENTIONALLY_REWORDED
+async def test_schemas_keep_their_contract(registered_tools, expected):
+    """Every parameter, type and required flag matches the pre-refactor baseline.
+
+    Descriptions and the injected shaping parameters are excluded - both are
+    deliberate improvements, covered by their own tests below.
+    """
+    checked = set(expected) & set(registered_tools)
     differences = [
         name
         for name in sorted(checked)
+        if _shape(expected[name].get("input_schema") or {})
+        != _shape(registered_tools[name].parameters or {})
+    ]
+    assert not differences, f"tool schemas changed: {differences}"
+
+
+async def test_untouched_tools_are_still_byte_identical(registered_tools, expected):
+    """Tools with no deliberate change must match the baseline exactly."""
+    from cats_mcp.registry.build import shaping_params_for
+
+    unchanged = []
+    for name in sorted(set(expected) & set(registered_tools)):
+        if name in INTENTIONALLY_REWORDED:
+            continue
+        spec = REGISTRY.by_name(name)
+        if spec and shaping_params_for(spec):
+            continue  # gained shaping params, checked separately
+        unchanged.append(name)
+
+    differences = [
+        name
+        for name in unchanged
         if (expected[name].get("input_schema") or {}) != (registered_tools[name].parameters or {})
     ]
     assert not differences, f"tool schemas changed: {differences}"
+    assert unchanged, "expected some tools to be entirely untouched"
+
+
+async def test_every_shaped_tool_can_widen_its_response(registered_tools):
+    """The documented escape hatch must exist on the tools that need it."""
+    from cats_mcp.registry.models import ResponseStrategy
+
+    missing = []
+    for spec in REGISTRY:
+        if spec.response not in (ResponseStrategy.SUMMARY, ResponseStrategy.DETAIL):
+            continue
+        properties = (registered_tools[spec.name].parameters or {}).get("properties", {})
+        if not INJECTED_SHAPING_PARAMS <= set(properties):
+            missing.append(spec.name)
+    assert not missing, f"shaped tools with no way to widen the response: {missing}"
+
+
+async def test_shaping_params_are_optional(registered_tools):
+    """Additive only - an existing caller must not have to change."""
+    from cats_mcp.registry.models import ResponseStrategy
+
+    for spec in REGISTRY:
+        if spec.response not in (ResponseStrategy.SUMMARY, ResponseStrategy.DETAIL):
+            continue
+        schema = registered_tools[spec.name].parameters or {}
+        required = set(schema.get("required") or [])
+        assert not (INJECTED_SHAPING_PARAMS & required), spec.name
 
 
 async def test_reworded_tools_kept_their_schema_shape(registered_tools, expected):

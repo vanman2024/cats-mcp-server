@@ -52,6 +52,7 @@ deployment environment.
 | --- | --- | --- |
 | `CATS_API_KEY` | - | **Required.** CATS API key |
 | `CATS_API_BASE_URL` | `https://api.catsone.com/v3` | API base URL |
+| `CATS_UI_BASE_URL` | - | e.g. `https://acme.catsone.com`; adds a `url` to each record |
 | `CATS_DISCOVERY_MODE` | `search` | `raw`, `search` or `code` |
 | `CATS_TOOLSETS` | all | e.g. `candidates,jobs,pipelines` |
 | `CATS_TRANSPORT` | `stdio` | `stdio` or `http` |
@@ -153,6 +154,17 @@ Widen deliberately:
 Custom fields are where account-specific screening data lives, so reach for
 `summary_level='standard'` rather than fetching each candidate individually -
 that is the difference between one request and fifty against a 500/hour budget.
+
+### Links back to CATS
+
+Set `CATS_UI_BASE_URL` and every record carries a `url` field pointing at it in
+the CATS web UI. Consumers were otherwise building these by hand and getting
+them wrong - CATS uses `index.php?m=candidates&a=show&candidateID=...`, not a
+REST-style `/candidates/{id}` path, so hand-built links look right in a
+spreadsheet and 404 when clicked.
+
+Unset, no link is emitted at all. A missing link is recoverable; a wrong one is
+not noticed until someone tries to use it.
 
 Resumes, attachments, activities, pipelines and applications are never included
 in a list at any level. They are unbounded in size and each has its own tool -

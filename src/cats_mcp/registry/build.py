@@ -39,13 +39,56 @@ _ANNOTATIONS: dict[Safety, dict[str, bool]] = {
 }
 
 
+#: Response-shaping parameters, injected into every tool that shapes its output.
+#:
+#: These belong to the response strategy, not to individual specs. Only 12 of
+#: 103 shaped tools declared `fields` and none declared `summary_level`, so the
+#: documented way to widen a response did not exist on 91 tools - an agent that
+#: needed custom fields from a list had no option but one request per record.
+_SHAPING_PARAMS: tuple[Param, ...] = (
+    Param(
+        name="summary_level",
+        annotation=str,
+        description=(
+            "How much of each record to return. 'compact' (default) gives a few "
+            "identifying fields. 'standard' adds custom fields - certifications, "
+            "trade qualifications and other account-specific data. 'full' returns "
+            "the whole record. Resumes, attachments, activities and pipelines are "
+            "never included at any level; each has its own tool."
+        ),
+        location=ParamLocation.SHAPING,
+        default="compact",
+    ),
+    Param(
+        name="fields",
+        annotation=str | None,
+        description=(
+            "Comma-separated field names to return, e.g. "
+            "'id,first_name,city,custom_fields'. Overrides summary_level. Use "
+            "'all' for the whole record."
+        ),
+        location=ParamLocation.SHAPING,
+        default=None,
+    ),
+)
+
+
+def shaping_params_for(spec: ToolSpec) -> tuple[Param, ...]:
+    """Shaping parameters a spec should expose but does not declare itself."""
+    if spec.response not in (ResponseStrategy.SUMMARY, ResponseStrategy.DETAIL):
+        return ()
+    declared = {p.name for p in spec.params}
+    return tuple(p for p in _SHAPING_PARAMS if p.name not in declared)
+
+
 def build_signature(spec: ToolSpec) -> tuple[list[inspect.Parameter], dict[str, Any]]:
     """Build the parameter list and annotations for a spec's tool function.
 
     Required parameters must precede optional ones or `inspect.Signature`
     rejects the result.
     """
-    ordered = sorted(spec.params, key=lambda p: (not p.required,))
+    all_params = spec.params + shaping_params_for(spec)
+    ordered = sorted(all_params, key=lambda p: (not p.required,))
     annotations: dict[str, Any] = {}
     sig_params: list[inspect.Parameter] = []
     # A file-returning tool must not claim to return a dict, or FastMCP derives
@@ -106,7 +149,9 @@ def split_arguments(spec: ToolSpec, kwargs: dict[str, Any]) -> tuple[str, dict, 
     return endpoint, query, (body or None)
 
 
-def make_tool_function(spec: ToolSpec, client_getter: Callable[[], Any]) -> Callable:
+def make_tool_function(
+    spec: ToolSpec, client_getter: Callable[[], Any], ui_base_url: str = ""
+) -> Callable:
     """Create the async callable FastMCP will register for this spec."""
     sig_params, annotations = build_signature(spec)
 
@@ -153,7 +198,7 @@ def make_tool_function(spec: ToolSpec, client_getter: Callable[[], Any]) -> Call
 
         from cats_mcp.responses.shaping import shape_response
 
-        return shape_response(spec, raw, kwargs)
+        return shape_response(spec, raw, kwargs, ui_base_url)
 
     impl.__name__ = spec.name
     impl.__qualname__ = spec.name
@@ -170,9 +215,10 @@ def register_spec(
     client_getter: Callable[[], Any],
     *,
     enforce_auth: bool,
+    ui_base_url: str = "",
 ) -> None:
     """Register one spec as a tool on the given FastMCP server."""
-    fn = make_tool_function(spec, client_getter)
+    fn = make_tool_function(spec, client_getter, ui_base_url)
 
     annotations = dict(_ANNOTATIONS[spec.safety])
     # CATS is an external system whose state changes outside this server.
@@ -217,9 +263,12 @@ def register_all(
     client_getter: Callable[[], Any],
     *,
     enforce_auth: bool,
+    ui_base_url: str = "",
 ) -> int:
     for spec in specs:
-        register_spec(mcp, spec, client_getter, enforce_auth=enforce_auth)
+        register_spec(
+            mcp, spec, client_getter, enforce_auth=enforce_auth, ui_base_url=ui_base_url
+        )
     return len(specs)
 
 

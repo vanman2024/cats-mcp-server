@@ -29,6 +29,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from cats_mcp.registry.models import ResponseStrategy, ToolSpec
+from cats_mcp.responses.links import record_url
 
 #: Compact projections per resource. Every one includes `id`, because an id is
 #: what lets the model fetch detail later.
@@ -155,7 +156,9 @@ def _fields_for(spec: ToolSpec, summary_level: str, explicit: str | None) -> lis
     return SUMMARY_FIELDS.get(spec.resource)
 
 
-def shape_list(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> dict[str, Any]:
+def shape_list(
+    spec: ToolSpec, raw: Any, call_args: dict[str, Any], ui_base_url: str = ""
+) -> dict[str, Any]:
     """Compact a CATS collection response."""
     if not isinstance(raw, dict):
         return {"items": raw, "count": len(raw) if isinstance(raw, list) else 0}
@@ -173,7 +176,11 @@ def shape_list(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> dict[str,
 
     fields = _fields_for(spec, summary_level, explicit_fields)
     items = [
-        _project(item, fields, drop_custom_fields=summary_level == "compact")
+        _with_url(
+            _project(item, fields, drop_custom_fields=summary_level == "compact"),
+            spec,
+            ui_base_url,
+        )
         for item in _extract_items(raw, spec.collection_key)
     ]
 
@@ -202,26 +209,47 @@ def shape_list(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> dict[str,
     return result
 
 
-def shape_detail(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> Any:
+def shape_detail(
+    spec: ToolSpec, raw: Any, call_args: dict[str, Any], ui_base_url: str = ""
+) -> Any:
     """Trim a single record: drop HAL plumbing, keep the record itself."""
     if not isinstance(raw, dict):
         return raw
     summary_level = str(call_args.get("summary_level") or "standard").lower()
     cleaned = _strip_hal(raw)
     if summary_level == "full":
-        return cleaned
+        return _with_url(cleaned, spec, ui_base_url)
     if summary_level == "compact":
         fields = SUMMARY_FIELDS.get(spec.resource)
         if fields:
-            return _project(raw, fields)
+            return _with_url(_project(raw, fields), spec, ui_base_url)
     # `standard`: the whole record minus the sub-collections that have their
     # own tools. Those are what make a candidate record enormous.
-    return {k: v for k, v in cleaned.items() if k not in _NEVER_IN_LISTS}
+    return _with_url(
+        {k: v for k, v in cleaned.items() if k not in _NEVER_IN_LISTS}, spec, ui_base_url
+    )
 
 
-def shape_response(spec: ToolSpec, raw: Any, call_args: dict[str, Any]) -> Any:
+def _with_url(item: Any, spec: ToolSpec, ui_base_url: str) -> Any:
+    """Attach a link to the record in the CATS web UI, when one can be built.
+
+    Emitted by the adapter rather than left to the caller, because consumers
+    were constructing a REST-looking `/candidates/{id}` path that does not
+    exist - links that look right in a spreadsheet and 404 when clicked.
+    """
+    if not isinstance(item, dict):
+        return item
+    url = record_url(ui_base_url, spec.resource, item.get("id"))
+    if url:
+        item["url"] = url
+    return item
+
+
+def shape_response(
+    spec: ToolSpec, raw: Any, call_args: dict[str, Any], ui_base_url: str = ""
+) -> Any:
     if spec.response is ResponseStrategy.SUMMARY:
-        return shape_list(spec, raw, call_args)
+        return shape_list(spec, raw, call_args, ui_base_url)
     if spec.response is ResponseStrategy.DETAIL:
-        return shape_detail(spec, raw, call_args)
+        return shape_detail(spec, raw, call_args, ui_base_url)
     return raw
