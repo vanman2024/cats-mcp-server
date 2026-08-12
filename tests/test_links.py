@@ -81,9 +81,21 @@ def test_no_link_without_a_configured_domain():
     assert record_url("", "candidate", CANDIDATE_ID) is None
 
 
+def test_job_url_uses_the_joborders_module():
+    """The UI vocabulary does not match the API's: joborders, not jobs."""
+    url = record_url(UI, "job", 16796514)
+    assert url == f"{UI}/index.php?m=joborders&a=show&jobOrderID=16796514"
+
+
+def test_job_url_does_not_borrow_the_api_naming():
+    url = record_url(UI, "job", 16796514)
+    assert "m=jobs" not in url
+    assert "jobId" not in url
+
+
 def test_no_link_for_a_resource_with_no_confirmed_format():
     """Guessing a pattern would reproduce the exact bug this prevents."""
-    for resource in ("job", "company", "contact", "pipeline"):
+    for resource in ("company", "contact", "pipeline", "activity"):
         assert record_url(UI, resource, 1) is None, resource
 
 
@@ -132,3 +144,23 @@ async def test_a_detail_result_also_carries_the_link():
 
     assert str(CANDIDATE_ID) in result.data["url"]
     assert "index.php" in result.data["url"]
+
+
+async def test_job_results_carry_a_working_link():
+    def handler(request):
+        return httpx2.Response(
+            200,
+            json={
+                "count": 1,
+                "total": 1,
+                "_links": {},
+                "_embedded": {"jobs": [{"id": 16796514, "title": "Heavy Duty Mechanic"}]},
+            },
+        )
+
+    async with Client(build(handler)) as client:
+        result = await client.call_tool("list_jobs", {})
+
+    assert result.data["items"][0]["url"] == (
+        f"{UI}/index.php?m=joborders&a=show&jobOrderID=16796514"
+    )

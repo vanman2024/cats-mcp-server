@@ -21,10 +21,16 @@ from __future__ import annotations
 #: Query-string patterns for the CATS web UI, keyed by resource.
 #:
 #: CATS uses `index.php?m=<module>&a=show&<key>=<id>`, not REST-style paths.
-#: Confirmed against a live account for candidates. Anything not listed here
-#: gets no link rather than a plausible-looking guess.
+#: The module and key names do not follow from the API's own vocabulary - a job
+#: is `m=joborders` with `jobOrderID`, not `jobs`/`jobId` - so each one has to
+#: be confirmed rather than inferred.
+#:
+#: Every entry here was taken from a real URL in a live account. Anything not
+#: listed gets no link at all, which is the point: a guessed pattern would
+#: reproduce exactly the bug this module exists to prevent.
 _UI_PATHS: dict[str, str] = {
     "candidate": "index.php?m=candidates&a=show&candidateID={id}",
+    "job": "index.php?m=joborders&a=show&jobOrderID={id}",
 }
 
 
