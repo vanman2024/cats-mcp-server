@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 #: tool called `GET /users/current`, which does not exist in CATS v3 and returns
 #: 404. Pinning a broken tool as the entry point to the whole server would be
 #: the worst possible choice. `get_site` is the working equivalent.
-PINNED_TOOLS: tuple[str, ...] = ("get_site",)
+PINNED_TOOLS: tuple[str, ...] = ("get_connection_status", "get_site")
 
 
 class CodeModeUnavailableError(RuntimeError):
