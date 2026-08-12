@@ -94,8 +94,8 @@ def test_readme_points_at_the_generated_doc():
     assert "docs/TOOLS.md" in text
 
 
-#: The documentation that is meant to be current. Everything else lives in
-#: docs/archive/ and is allowed to be wrong about the present.
+#: The complete set of documentation in the working tree. Superseded material
+#: is not archived in-tree - git history is the archive.
 LIVING_DOCS = [
     "README.md",
     "docs/ARCHITECTURE.md",
@@ -127,6 +127,24 @@ def test_no_stray_markdown_at_the_repository_root():
     """Only README belongs at the root; the rest lives under docs/."""
     found = {p.name for p in ROOT.glob("*.md")}
     assert found == {"README.md"}, f"unexpected root docs: {sorted(found - {'README.md'})}"
+
+
+def test_nothing_is_archived_in_the_working_tree():
+    """Git history is the archive.
+
+    The repository previously carried 32 files across two archive directories -
+    superseded docs, four abandoned server variants, and 832KB of Newman results
+    in which all 163 requests returned 401. None of it was reachable from the
+    living documentation, and every version of it is still in git history.
+    """
+    stale = [d for d in (ROOT / "archive", ROOT / "docs" / "archive") if d.exists()]
+    assert not stale, f"archive directories reappeared: {[str(d) for d in stale]}"
+
+
+def test_docs_directory_holds_only_the_living_set():
+    found = {f"docs/{p.name}" for p in (ROOT / "docs").glob("*.md")}
+    expected = {d for d in LIVING_DOCS if d.startswith("docs/")}
+    assert found == expected, f"unexpected docs: {sorted(found - expected)}"
 
 
 @pytest.mark.parametrize("name", LIVING_DOCS)

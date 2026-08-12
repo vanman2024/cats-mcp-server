@@ -6,11 +6,10 @@ building - Horizon reads its entrypoint from its own server configuration, not
 from `fastmcp.json`, so moving the file broke the build even though the repo's
 own config was updated.
 
-The original 169-line implementation is at
-`archive/pre-v4-toolsets/server_all_tools.py`. It registered every toolset at
-import time as a workaround for `server.py` registering none, and diverged into
-a second request implementation with `print()`-based logging. Both problems are
-gone; this is a re-export, not a second server.
+The original 169-line implementation is in git history. It registered every
+toolset at import time as a workaround for `server.py` registering none, and
+diverged into a second request implementation with `print()`-based logging.
+Both problems are gone; this is a re-export, not a second server.
 
 Preferred entrypoint: `src/cats_mcp/app.py` (object `mcp`). Update the
 entrypoint in the Horizon UI when convenient - it takes effect on the next

@@ -185,5 +185,4 @@ into a working tool; there is no per-tool request code to write.
 | [docs/TOOLS.md](docs/TOOLS.md) | tool, resource and prompt inventory (generated) |
 | [docs/CREDENTIAL-SAFETY.md](docs/CREDENTIAL-SAFETY.md) | secret handling and the pre-commit guard |
 
-`docs/archive/` holds superseded material, including the pre-refactor audit that
-motivated this design.
+Superseded documentation is not kept in the working tree; git history has it.

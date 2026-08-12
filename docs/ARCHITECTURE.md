@@ -177,14 +177,23 @@ logs, tests and design docs - cannot recur.
 
 ## Out of scope
 
-StaffHive-specific logic. See `archive/CATS-INTELLIGENCE-SYSTEM.md` for the
-earlier product exploration and why it does not belong here.
+StaffHive-specific logic.
+
+An earlier design document proposed building an entire agentic recruiting
+application in this repository - FastAPI services, a Supabase mirror of CATS
+data, an agent hierarchy, a memory system, a communications layer and a
+frontend. That is the StaffHive product, not a vendor adapter. Building it here
+would tie a CATS adapter to one product's business rules and make it unusable
+for ChatGPT, Claude, Codex, or a future non-CATS ATS.
+
+Four ideas from it were genuinely adapter-specific and were kept: safety
+classification of mutations, correlation metadata on every request, explicit
+marking of operations that cannot be undone, and efficient bulk reads in place
+of a data-mirroring layer.
 
 ## Further reading
 
 - [DEPLOYMENT.md](DEPLOYMENT.md) - running it locally, on Horizon, or self-hosted
 - [TOOLS.md](TOOLS.md) - generated tool, resource and prompt inventory
-- `archive/2026-08-11-audit-gap-report.md` - what was wrong before the refactor,
-  with evidence. The findings it records are why most of this design exists.
-- `archive/2026-08-11-module-structure-proposal.md` - the structure proposal and
-  the migration risks identified up front
+The pre-refactor audit that motivated this design is in git history, at
+`docs/architecture/00-audit-gap-report.md` before commit 536aba6.
