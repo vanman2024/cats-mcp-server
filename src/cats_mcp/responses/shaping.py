@@ -25,6 +25,7 @@ the full result count.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -54,6 +55,12 @@ SUMMARY_FIELDS: dict[str, list[str]] = {
     "user": ["id", "first_name", "last_name", "email_address"],
     "attachment": ["id", "filename", "content_type", "date_created", "is_resume"],
     "work_history": ["id", "company_name", "title", "start_date", "end_date"],
+    # A list *item* is not the record it points at. Its `id` is the membership
+    # row; the record is in candidate_id / job_id. Projecting these through the
+    # candidate summary dropped candidate_id entirely and left the item id
+    # sitting in `id`, where it reads as a candidate id and is not one.
+    "list_item": ["id", "candidate_id", "job_id", "date_created"],
+    "record_list": ["id", "name", "description", "total", "date_created"],
 }
 
 #: Unbounded sub-collections. Excluded from list results at every summary level
@@ -86,8 +93,55 @@ _HAL_KEYS = frozenset({"_links", "_embedded"})
 _SUMMARY_LEVELS = ("compact", "standard", "full")
 
 
+#: Navigation relations. These point at pages, not at records.
+_NAVIGATION_RELS = frozenset({"self", "next", "prev", "previous", "first", "last"})
+
+#: Trailing numeric id in a HAL href, e.g. ".../candidates/407813885".
+_HREF_ID = re.compile(r"/(\d+)/?$")
+
+
+def _harvest_related_ids(item: dict[str, Any]) -> dict[str, Any]:
+    """Recover record ids from HAL `_links` and `_embedded` before they are stripped.
+
+    Some responses carry the id of the record they refer to *only* in the HAL
+    plumbing. A saved-list membership row is the clearest case: its own `id` is
+    the row, and the person it points at may appear solely as
+    `_links.candidate.href`. Stripping HAL then leaves a row that identifies
+    nobody, which makes the endpoint look like it can only be resolved one item
+    at a time - it cannot, and doing so costs 299 requests against a 500/hour
+    budget for a single list.
+
+    Existing top-level fields always win; this only fills gaps.
+    """
+    found: dict[str, Any] = {}
+
+    links = item.get("_links")
+    if isinstance(links, dict):
+        for rel, target in links.items():
+            if rel in _NAVIGATION_RELS:
+                continue
+            href = target.get("href") if isinstance(target, dict) else target
+            if not isinstance(href, str):
+                continue
+            match = _HREF_ID.search(href)
+            if match:
+                found.setdefault(f"{rel}_id", int(match.group(1)))
+
+    embedded = item.get("_embedded")
+    if isinstance(embedded, dict):
+        for rel, target in embedded.items():
+            if isinstance(target, dict) and "id" in target:
+                found.setdefault(f"{rel}_id", target["id"])
+
+    return {k: v for k, v in found.items() if k not in item}
+
+
 def _strip_hal(item: dict[str, Any]) -> dict[str, Any]:
-    return {k: v for k, v in item.items() if k not in _HAL_KEYS}
+    """Drop HAL plumbing, keeping any record ids it was carrying."""
+    recovered = _harvest_related_ids(item)
+    kept = {k: v for k, v in item.items() if k not in _HAL_KEYS}
+    kept.update(recovered)
+    return kept
 
 
 def _project(item: Any, fields: list[str] | None, *, drop_custom_fields: bool = False) -> Any:
