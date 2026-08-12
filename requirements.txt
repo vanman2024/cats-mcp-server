@@ -1,10 +1,19 @@
-# FastMCP CATS API Server Dependencies
-# Install with: pip install -r requirements.txt
+# CATS MCP Server dependencies
+#
+# Generated from pyproject.toml [project.dependencies] — keep the two in sync.
+# A test asserts they match.
+#
+# Install with:
+#   uv pip install -r requirements.txt --prerelease=allow
+#   pip install -r requirements.txt
+#
+# fastmcp 4 is a prerelease. Every other pin is exact so that the prerelease
+# surface stays limited to fastmcp alone — a loose specifier lets uv resolve
+# that package to a prerelease too (httpx went to 1.0.dev3 this way).
+#
+# FastMCP 4 uses httpx2, not httpx. Do not add httpx back.
 
-# Core dependencies
-fastmcp>=2.0.0
-httpx>=0.27.0
-pydantic>=2.0.0
-python-dotenv>=1.0.0
-
-# Development dependencies (install with: pip install -r requirements.txt -r requirements-dev.txt)
+fastmcp==4.0.0b2
+httpx2==2.10.0
+pydantic==2.13.4
+python-dotenv==1.2.2

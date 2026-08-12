@@ -1,0 +1,6458 @@
+{
+  "attach_candidate_tags": {
+    "description": "Add tags to a candidate (keeps existing tags).\nWraps: PUT /candidates/{id}/tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "tag_ids": {
+          "description": "List of tag IDs to add",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "tag_ids"
+      ],
+      "type": "object"
+    },
+    "name": "attach_candidate_tags"
+  },
+  "attach_company_tags": {
+    "description": "Attach additional tags to a company (additive).\n\nPUT /companies/{id}/tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "tag_ids": {
+          "description": "List of tag IDs to add",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "company_id",
+        "tag_ids"
+      ],
+      "type": "object"
+    },
+    "name": "attach_company_tags"
+  },
+  "attach_contact_tags": {
+    "description": "Attach additional tags to a contact (additive).\n\nPUT /contacts/{id}/tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "tag_ids": {
+          "description": "List of tag IDs to add",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "contact_id",
+        "tag_ids"
+      ],
+      "type": "object"
+    },
+    "name": "attach_contact_tags"
+  },
+  "attach_job_tags": {
+    "description": "Add tags to a job (keeps existing tags).\nWraps: PUT /jobs/{id}/tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        },
+        "tag_ids": {
+          "description": "List of tag IDs to add",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "job_id",
+        "tag_ids"
+      ],
+      "type": "object"
+    },
+    "name": "attach_job_tags"
+  },
+  "authorize_candidate": {
+    "description": "Authorize a candidate action (e.g., portal access).\nWraps: POST /candidates/authorization",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "description": "The authorization action to perform",
+          "type": "string"
+        },
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "action"
+      ],
+      "type": "object"
+    },
+    "name": "authorize_candidate"
+  },
+  "authorize_user": {
+    "description": "Check if a user is authorized for a specific action.\nWraps: POST /authorization\n\nNOTE: The /authorization endpoint may not exist in the official CATS API v3 spec.\nAuthorization is typically handled via API key permissions at the account level.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "description": "The action to authorize (e.g., 'read', 'write', 'delete')",
+          "type": "string"
+        },
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the user"
+        }
+      },
+      "required": [
+        "user_id",
+        "action"
+      ],
+      "type": "object"
+    },
+    "name": "authorize_user"
+  },
+  "change_candidate_thumbnail": {
+    "description": "Update a candidate's thumbnail image.\nWraps: PUT /candidates/{id}/thumbnail",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "image_data": {
+          "description": "Base64 encoded image data or image URL",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "image_data"
+      ],
+      "type": "object"
+    },
+    "name": "change_candidate_thumbnail"
+  },
+  "change_company_thumbnail": {
+    "description": "Update a company's thumbnail image.\n\nPUT /companies/{id}/thumbnail",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "image_data": {
+          "description": "Base64 encoded image data or image URL",
+          "type": "string"
+        }
+      },
+      "required": [
+        "company_id",
+        "image_data"
+      ],
+      "type": "object"
+    },
+    "name": "change_company_thumbnail"
+  },
+  "change_contact_thumbnail": {
+    "description": "Update a contact's thumbnail image.\n\nPUT /contacts/{id}/thumbnail",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "image_data": {
+          "description": "Base64 encoded image data or image URL",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contact_id",
+        "image_data"
+      ],
+      "type": "object"
+    },
+    "name": "change_contact_thumbnail"
+  },
+  "change_job_status": {
+    "description": "Change the status of a job.\nWraps: POST /jobs/{id}/status",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional reason for the status change"
+        },
+        "status_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The new status ID"
+        }
+      },
+      "required": [
+        "job_id",
+        "status_id"
+      ],
+      "type": "object"
+    },
+    "name": "change_job_status"
+  },
+  "change_pipeline_status": {
+    "description": "Move a pipeline to a different status/stage.\nWraps: POST /pipelines/{id}/status",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional notes about the status change"
+        },
+        "pipeline_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the pipeline"
+        },
+        "status_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The target status/stage ID"
+        }
+      },
+      "required": [
+        "pipeline_id",
+        "status_id"
+      ],
+      "type": "object"
+    },
+    "name": "change_pipeline_status"
+  },
+  "create_backup": {
+    "description": "Create a new system backup.\n\nCreates a full backup of all CATS data. The backup process is asynchronous\nand may take several minutes to hours depending on data volume.\n\nBackups expire after 90 days and are automatically deleted.\n\nWraps: POST /backups",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional description for the backup"
+        },
+        "include_attachments": {
+          "default": true,
+          "description": "Include attachment files (default: True)",
+          "type": "boolean"
+        },
+        "include_emails": {
+          "default": true,
+          "description": "Include email history (default: True)",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "name": "create_backup"
+  },
+  "create_candidate": {
+    "description": "Create a new candidate in the system.\nWraps: POST /candidates",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "email": {
+          "description": "Email address",
+          "type": "string"
+        },
+        "first_name": {
+          "description": "Candidate's first name",
+          "type": "string"
+        },
+        "last_name": {
+          "description": "Candidate's last name",
+          "type": "string"
+        },
+        "linkedin_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "LinkedIn profile URL (optional)"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phone number (optional)"
+        },
+        "resume_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL to resume document (optional)"
+        }
+      },
+      "required": [
+        "first_name",
+        "last_name",
+        "email"
+      ],
+      "type": "object"
+    },
+    "name": "create_candidate"
+  },
+  "create_candidate_activity": {
+    "description": "Create a new activity for a candidate.\nWraps: POST /candidates/{id}/activities",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "activity_type": {
+          "description": "Type of activity (e.g., 'meeting_scheduled', 'email_sent')",
+          "type": "string"
+        },
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Activity date in ISO format (optional)"
+        },
+        "description": {
+          "description": "Description of the activity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "activity_type",
+        "description"
+      ],
+      "type": "object"
+    },
+    "name": "create_candidate_activity"
+  },
+  "create_candidate_email": {
+    "description": "Add a new email address for a candidate.\nWraps: POST /candidates/{id}/emails",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "email": {
+          "description": "Email address to add",
+          "type": "string"
+        },
+        "email_type": {
+          "default": "personal",
+          "description": "Type of email (e.g., 'personal', 'work') (default: 'personal')",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "email"
+      ],
+      "type": "object"
+    },
+    "name": "create_candidate_email"
+  },
+  "create_candidate_list": {
+    "description": "Create a new candidate list.\nWraps: POST /candidates/lists",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the list (optional)"
+        },
+        "name": {
+          "description": "Name of the list",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "name": "create_candidate_list"
+  },
+  "create_candidate_list_items": {
+    "description": "Add candidates to a list.\nWraps: POST /candidates/lists/{id}/items",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_ids": {
+          "description": "List of candidate IDs to add",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        }
+      },
+      "required": [
+        "list_id",
+        "candidate_ids"
+      ],
+      "type": "object"
+    },
+    "name": "create_candidate_list_items"
+  },
+  "create_candidate_phone": {
+    "description": "Add a new phone number for a candidate.\nWraps: POST /candidates/{id}/phones",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "phone": {
+          "description": "Phone number to add",
+          "type": "string"
+        },
+        "phone_type": {
+          "default": "mobile",
+          "description": "Type of phone (e.g., 'mobile', 'home', 'work') (default: 'mobile')",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "phone"
+      ],
+      "type": "object"
+    },
+    "name": "create_candidate_phone"
+  },
+  "create_candidate_work_history": {
+    "description": "Add a work history entry for a candidate.\nWraps: POST /candidates/{id}/work_history",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "company": {
+          "description": "Company name",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Job description (optional)"
+        },
+        "end_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "End date in ISO format (optional, null for current)"
+        },
+        "start_date": {
+          "description": "Start date in ISO format (YYYY-MM-DD)",
+          "type": "string"
+        },
+        "title": {
+          "description": "Job title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "company",
+        "title",
+        "start_date"
+      ],
+      "type": "object"
+    },
+    "name": "create_candidate_work_history"
+  },
+  "create_company": {
+    "description": "Create a new company record.\n\nPOST /companies",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Street address"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "City"
+        },
+        "name": {
+          "description": "Company name (required)",
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Additional notes about the company"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Company phone number"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "State/province"
+        },
+        "website": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Company website URL"
+        },
+        "zip_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ZIP or postal code"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "name": "create_company"
+  },
+  "create_company_activity": {
+    "description": "Create an activity for a company.\n\nPOST /companies/{id}/activities",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "activity_type": {
+          "description": "Type (email, meeting, call_talked, call_lvm, call_missed, text_message, other)",
+          "type": "string"
+        },
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "description": {
+          "description": "Activity description",
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Additional notes"
+        }
+      },
+      "required": [
+        "company_id",
+        "activity_type",
+        "description"
+      ],
+      "type": "object"
+    },
+    "name": "create_company_activity"
+  },
+  "create_company_department": {
+    "description": "Create a new department for a company.\n\nPOST /companies/{id}/departments",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Department description"
+        },
+        "name": {
+          "description": "Department name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "company_id",
+        "name"
+      ],
+      "type": "object"
+    },
+    "name": "create_company_department"
+  },
+  "create_company_phone": {
+    "description": "Add a phone number for a company.\n\nPOST /companies/{id}/phones",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "phone": {
+          "description": "Phone number",
+          "type": "string"
+        },
+        "phone_type": {
+          "default": "work",
+          "description": "Type (work, mobile, etc.)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "company_id",
+        "phone"
+      ],
+      "type": "object"
+    },
+    "name": "create_company_phone"
+  },
+  "create_contact": {
+    "description": "Create a new contact record.\n\nPOST /contacts",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Associated company ID"
+        },
+        "email": {
+          "description": "Contact's email address (required)",
+          "type": "string"
+        },
+        "first_name": {
+          "description": "Contact's first name (required)",
+          "type": "string"
+        },
+        "last_name": {
+          "description": "Contact's last name (required)",
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Additional notes"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phone number"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Job title"
+        }
+      },
+      "required": [
+        "first_name",
+        "last_name",
+        "email"
+      ],
+      "type": "object"
+    },
+    "name": "create_contact"
+  },
+  "create_contact_activity": {
+    "description": "Create an activity for a contact.\n\nPOST /contacts/{id}/activities",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "activity_type": {
+          "description": "Type (email, meeting, call_talked, call_lvm, call_missed, text_message, other)",
+          "type": "string"
+        },
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "description": {
+          "description": "Activity description",
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Additional notes"
+        }
+      },
+      "required": [
+        "contact_id",
+        "activity_type",
+        "description"
+      ],
+      "type": "object"
+    },
+    "name": "create_contact_activity"
+  },
+  "create_contact_email": {
+    "description": "Add an email address to a contact.\n\nPOST /contacts/{id}/emails",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "email": {
+          "description": "Email address",
+          "type": "string"
+        },
+        "email_type": {
+          "default": "work",
+          "description": "Type (work, personal, other)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contact_id",
+        "email"
+      ],
+      "type": "object"
+    },
+    "name": "create_contact_email"
+  },
+  "create_contact_phone": {
+    "description": "Add a phone number to a contact.\n\nPOST /contacts/{id}/phones",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "phone": {
+          "description": "Phone number",
+          "type": "string"
+        },
+        "phone_type": {
+          "default": "work",
+          "description": "Type (work, mobile, home, other)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contact_id",
+        "phone"
+      ],
+      "type": "object"
+    },
+    "name": "create_contact_phone"
+  },
+  "create_job": {
+    "description": "Create a new job posting.\nWraps: POST /jobs",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "department": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Department name (optional)"
+        },
+        "description": {
+          "description": "Job description",
+          "type": "string"
+        },
+        "employment_type": {
+          "default": "full-time",
+          "description": "Type of employment (default: 'full-time')",
+          "type": "string"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Job location (optional)"
+        },
+        "salary_max": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum salary (optional)"
+        },
+        "salary_min": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Minimum salary (optional)"
+        },
+        "title": {
+          "description": "Job title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "description"
+      ],
+      "type": "object"
+    },
+    "name": "create_job"
+  },
+  "create_job_list": {
+    "description": "Create a new job list/collection.\nWraps: POST /jobs/lists",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of the list (optional)"
+        },
+        "name": {
+          "description": "Name of the job list",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "name": "create_job_list"
+  },
+  "create_job_list_items": {
+    "description": "Add jobs to a job list.\nWraps: POST /jobs/lists/{id}/items",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_ids": {
+          "description": "List of job IDs to add",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        }
+      },
+      "required": [
+        "list_id",
+        "job_ids"
+      ],
+      "type": "object"
+    },
+    "name": "create_job_list_items"
+  },
+  "create_pipeline": {
+    "description": "Create a new pipeline entry (submit candidate to job).\nWraps: POST /pipelines",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "description": "The candidate ID to submit",
+          "type": "integer"
+        },
+        "job_id": {
+          "description": "The job ID to submit candidate to",
+          "type": "integer"
+        },
+        "rating": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional rating (1-5)"
+        },
+        "status_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Initial pipeline status/stage ID (optional)"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "create_pipeline"
+  },
+  "create_task": {
+    "description": "Create a new task.\nWraps: POST /tasks",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "assigned_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "User ID to assign task to (optional)"
+        },
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Associated candidate ID (optional)"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Task description (optional)"
+        },
+        "due_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Due date in ISO format (optional)"
+        },
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Associated job ID (optional)"
+        },
+        "title": {
+          "description": "Task title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "type": "object"
+    },
+    "name": "create_task"
+  },
+  "create_webhook": {
+    "description": "Create a new webhook subscription.\n\nWraps: POST /webhooks\n\nThe webhook will receive POST requests with JSON payloads when subscribed\nevents occur. Each request includes:\n- X-CATS-Signature: HMAC-SHA256 signature for verification\n- X-CATS-Event: Event type that triggered the webhook\n- X-CATS-Delivery: Unique delivery ID",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "description": "List of event types to subscribe to.\n    Available: candidate.created, candidate.updated, candidate.deleted,\n    job.created, job.updated, job.deleted, job.status_changed,\n    pipeline.created, pipeline.deleted, pipeline.status_changed,\n    contact.created, contact.updated, contact.deleted,\n    company.created, company.updated, company.deleted,\n    activity.created, activity.updated, activity.deleted,\n    user.created, user.updated, user.deleted",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "signing_key": {
+          "description": "HMAC-SHA256 key for webhook signature verification",
+          "type": "string"
+        },
+        "target_url": {
+          "description": "Target URL for webhook POST requests (must be HTTPS in production)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_url",
+        "events",
+        "signing_key"
+      ],
+      "type": "object"
+    },
+    "name": "create_webhook"
+  },
+  "delete_activity": {
+    "description": "Delete an activity record (permanent).\n\nDELETE /activities/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "activity_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "ID of activity to delete"
+        }
+      },
+      "required": [
+        "activity_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_activity"
+  },
+  "delete_attachment": {
+    "description": "Delete an attachment.\n\nThis permanently removes the attachment file and its metadata.\nThe file cannot be recovered after deletion.\n\nWraps: DELETE /attachments/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "attachment_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the attachment to delete"
+        }
+      },
+      "required": [
+        "attachment_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_attachment"
+  },
+  "delete_candidate": {
+    "description": "Permanently delete a candidate from the system.\nWraps: DELETE /candidates/{id}\n\nWARNING: This is permanent. Consider archiving instead.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_candidate"
+  },
+  "delete_candidate_email": {
+    "description": "Delete a candidate's email address.\nWraps: DELETE /candidates/{id}/emails/{email_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "email_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the email to delete"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "email_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_candidate_email"
+  },
+  "delete_candidate_list": {
+    "description": "Delete a candidate list.\nWraps: DELETE /candidates/lists/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        }
+      },
+      "required": [
+        "list_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_candidate_list"
+  },
+  "delete_candidate_list_item": {
+    "description": "Remove a candidate from a list.\nWraps: DELETE /candidates/lists/{list_id}/items/{item_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list item"
+        },
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        }
+      },
+      "required": [
+        "list_id",
+        "item_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_candidate_list_item"
+  },
+  "delete_candidate_phone": {
+    "description": "Delete a candidate's phone number.\nWraps: DELETE /candidates/{id}/phones/{phone_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "phone_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the phone to delete"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "phone_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_candidate_phone"
+  },
+  "delete_candidate_tag": {
+    "description": "Remove a specific tag from a candidate.\nWraps: DELETE /candidates/{id}/tags/{tag_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "tag_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the tag to remove"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "tag_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_candidate_tag"
+  },
+  "delete_candidate_work_history_item": {
+    "description": "Delete a work history item for a candidate.\nWraps: DELETE /candidates/{id}/work_history/{work_history_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "work_history_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the work history item"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "work_history_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_candidate_work_history_item"
+  },
+  "delete_company": {
+    "description": "Delete a company record (permanent).\n\nDELETE /companies/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "ID of company to delete"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_company"
+  },
+  "delete_company_department": {
+    "description": "Delete a company department.\n\nDELETE /companies/{id}/departments/{dept_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "department_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Department ID"
+        }
+      },
+      "required": [
+        "company_id",
+        "department_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_company_department"
+  },
+  "delete_company_phone": {
+    "description": "Delete a company phone number.\n\nDELETE /companies/{id}/phones/{phone_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "phone_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Phone ID"
+        }
+      },
+      "required": [
+        "company_id",
+        "phone_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_company_phone"
+  },
+  "delete_company_tag": {
+    "description": "Remove a specific tag from a company.\n\nDELETE /companies/{id}/tags/{tag_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "tag_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Tag ID to remove"
+        }
+      },
+      "required": [
+        "company_id",
+        "tag_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_company_tag"
+  },
+  "delete_contact": {
+    "description": "Delete a contact record (permanent).\n\nDELETE /contacts/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "ID of contact to delete"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_contact"
+  },
+  "delete_contact_email": {
+    "description": "Delete a contact's email address.\n\nDELETE /contacts/{id}/emails/{email_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "email_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Email record ID"
+        }
+      },
+      "required": [
+        "contact_id",
+        "email_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_contact_email"
+  },
+  "delete_contact_phone": {
+    "description": "Delete a contact's phone number.\n\nDELETE /contacts/{id}/phones/{phone_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "phone_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Phone record ID"
+        }
+      },
+      "required": [
+        "contact_id",
+        "phone_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_contact_phone"
+  },
+  "delete_contact_tag": {
+    "description": "Remove a specific tag from a contact.\n\nDELETE /contacts/{id}/tags/{tag_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "tag_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Tag ID to remove"
+        }
+      },
+      "required": [
+        "contact_id",
+        "tag_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_contact_tag"
+  },
+  "delete_job": {
+    "description": "Permanently delete a job posting.\nWraps: DELETE /jobs/{id}\n\nWARNING: This is permanent. Consider closing the job instead.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        }
+      },
+      "required": [
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_job"
+  },
+  "delete_job_list": {
+    "description": "Delete a job list.\nWraps: DELETE /jobs/lists/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        }
+      },
+      "required": [
+        "list_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_job_list"
+  },
+  "delete_job_list_item": {
+    "description": "Remove an item from a job list.\nWraps: DELETE /jobs/lists/{list_id}/items/{item_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list item to remove"
+        },
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        }
+      },
+      "required": [
+        "list_id",
+        "item_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_job_list_item"
+  },
+  "delete_job_tag": {
+    "description": "Remove a specific tag from a job.\nWraps: DELETE /jobs/{id}/tags/{tag_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        },
+        "tag_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the tag to remove"
+        }
+      },
+      "required": [
+        "job_id",
+        "tag_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_job_tag"
+  },
+  "delete_pipeline": {
+    "description": "Delete a pipeline entry.\nWraps: DELETE /pipelines/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "pipeline_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the pipeline"
+        }
+      },
+      "required": [
+        "pipeline_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_pipeline"
+  },
+  "delete_task": {
+    "description": "Delete a task.\nWraps: DELETE /tasks/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the task"
+        }
+      },
+      "required": [
+        "task_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_task"
+  },
+  "delete_webhook": {
+    "description": "Delete a webhook subscription.\n\nThis permanently removes the webhook configuration. All pending deliveries\nwill be cancelled.\n\nWraps: DELETE /webhooks/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "webhook_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the webhook to delete"
+        }
+      },
+      "required": [
+        "webhook_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_webhook"
+  },
+  "delete_work_history": {
+    "description": "Delete a work history entry (permanent).\n\nDELETE /work_history/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "work_history_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "ID of work history to delete"
+        }
+      },
+      "required": [
+        "work_history_id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_work_history"
+  },
+  "download_attachment": {
+    "description": "Download an attachment file.\n\nReturns a pre-signed URL for downloading the file. The URL is temporary\nand expires after 1 hour.\n\nWraps: GET /attachments/{id}/download",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "attachment_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the attachment"
+        }
+      },
+      "required": [
+        "attachment_id"
+      ],
+      "type": "object"
+    },
+    "name": "download_attachment"
+  },
+  "filter_activities": {
+    "description": "Filter activities using advanced criteria.\n\nPOST /activities/search",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "filter_field": {
+          "description": "Field to filter on (e.g., \"type\", \"subject\", \"date\")",
+          "type": "string"
+        },
+        "filter_type": {
+          "description": "Filter operator (\"contains\", \"exactly\", \"is_empty\", \"greater_than\", \"less_than\", \"between\")",
+          "type": "string"
+        },
+        "filter_value": {
+          "description": "Value to filter by"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Results per page (max: 100)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "filter_field",
+        "filter_type",
+        "filter_value"
+      ],
+      "type": "object"
+    },
+    "name": "filter_activities"
+  },
+  "filter_candidates": {
+    "description": "Filter candidates with advanced criteria (returns SUMMARY by default).\nUse get_candidate(id) for full details of a specific candidate.\nWraps: POST /candidates/search",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include, or \"all\" for full response"
+        },
+        "filter_field": {
+          "description": "Field to filter on (e.g., \"status_id\", \"is_hot\")",
+          "type": "string"
+        },
+        "filter_type": {
+          "description": "Filter operator (\"contains\", \"exactly\", \"is_empty\", \"greater_than\", \"less_than\", \"between\")",
+          "type": "string"
+        },
+        "filter_value": {
+          "description": "Value to filter by"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Number of results per page (default: 10)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "filter_field",
+        "filter_type",
+        "filter_value"
+      ],
+      "type": "object"
+    },
+    "name": "filter_candidates"
+  },
+  "filter_companies": {
+    "description": "Filter companies using advanced criteria (returns SUMMARY by default).\nUse get_company(id) for full details.\n\nPOST /companies/search",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include, or \"all\" for full response"
+        },
+        "filter_field": {
+          "description": "Field to filter on (e.g., \"city\", \"state\", \"name\")",
+          "type": "string"
+        },
+        "filter_type": {
+          "description": "Filter operator (\"contains\", \"exactly\", \"is_empty\", \"greater_than\", \"less_than\", \"between\")",
+          "type": "string"
+        },
+        "filter_value": {
+          "description": "Value to filter by"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Results per page (default: 10)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "filter_field",
+        "filter_type",
+        "filter_value"
+      ],
+      "type": "object"
+    },
+    "name": "filter_companies"
+  },
+  "filter_contacts": {
+    "description": "Filter contacts using advanced criteria (returns SUMMARY by default).\nUse get_contact(id) for full details.\n\nPOST /contacts/search",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include, or \"all\" for full response"
+        },
+        "filter_field": {
+          "description": "Field to filter on (e.g., \"company_id\", \"title\", \"first_name\")",
+          "type": "string"
+        },
+        "filter_type": {
+          "description": "Filter operator (\"contains\", \"exactly\", \"is_empty\", \"greater_than\", \"less_than\", \"between\")",
+          "type": "string"
+        },
+        "filter_value": {
+          "description": "Value to filter by"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Results per page (default: 10)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "filter_field",
+        "filter_type",
+        "filter_value"
+      ],
+      "type": "object"
+    },
+    "name": "filter_contacts"
+  },
+  "filter_jobs": {
+    "description": "Filter jobs with advanced criteria (returns SUMMARY by default).\nUse get_job(id) for full details of a specific job.\nWraps: POST /jobs/search",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include, or \"all\" for full response"
+        },
+        "filter_field": {
+          "description": "Field to filter on (e.g., \"status_id\", \"department\", \"location\")",
+          "type": "string"
+        },
+        "filter_type": {
+          "description": "Filter operator (\"contains\", \"exactly\", \"is_empty\", \"greater_than\", \"less_than\", \"between\")",
+          "type": "string"
+        },
+        "filter_value": {
+          "description": "Value to filter by"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Number of results per page (default: 10)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "filter_field",
+        "filter_type",
+        "filter_value"
+      ],
+      "type": "object"
+    },
+    "name": "filter_jobs"
+  },
+  "filter_pipelines": {
+    "description": "Filter pipelines by job, candidate, or status.\nWraps: POST /pipelines/search",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "filter_field": {
+          "description": "Field to filter on (e.g., \"job_id\", \"candidate_id\", \"status_id\")",
+          "type": "string"
+        },
+        "filter_type": {
+          "description": "Filter operator (\"exactly\", \"contains\", \"is_empty\", \"greater_than\", \"less_than\", \"between\")",
+          "type": "string"
+        },
+        "filter_value": {
+          "description": "Value to filter by"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "filter_field",
+        "filter_type",
+        "filter_value"
+      ],
+      "type": "object"
+    },
+    "name": "filter_pipelines"
+  },
+  "get_activity": {
+    "description": "Get detailed information about a specific activity.\n\nGET /activities/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "activity_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Unique identifier for the activity"
+        }
+      },
+      "required": [
+        "activity_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_activity"
+  },
+  "get_attachment": {
+    "description": "Get metadata for a specific attachment.\n\nReturns attachment details but not the file content itself.\nUse download_attachment() to retrieve the actual file.\n\nWraps: GET /attachments/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "attachment_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the attachment"
+        }
+      },
+      "required": [
+        "attachment_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_attachment"
+  },
+  "get_backup": {
+    "description": "Get details of a specific backup.\n\nWraps: GET /backups/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "backup_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the backup"
+        }
+      },
+      "required": [
+        "backup_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_backup"
+  },
+  "get_candidate": {
+    "description": "Get detailed information about a specific candidate.\nWraps: GET /candidates/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_candidate"
+  },
+  "get_candidate_custom_field": {
+    "description": "Get a specific custom field for a candidate.\nWraps: GET /candidates/{id}/custom_fields/{field_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "field_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the custom field"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "field_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_candidate_custom_field"
+  },
+  "get_candidate_list": {
+    "description": "Get a specific candidate list.\nWraps: GET /candidates/lists/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        }
+      },
+      "required": [
+        "list_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_candidate_list"
+  },
+  "get_candidate_list_item": {
+    "description": "Get a specific candidate list item.\nWraps: GET /candidates/lists/{list_id}/items/{item_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list item"
+        },
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        }
+      },
+      "required": [
+        "list_id",
+        "item_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_candidate_list_item"
+  },
+  "get_candidate_thumbnail": {
+    "description": "Get a candidate's thumbnail image.\nWraps: GET /candidates/{id}/thumbnail",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_candidate_thumbnail"
+  },
+  "get_candidate_work_history_item": {
+    "description": "Get a specific work history item for a candidate.\nWraps: GET /candidates/{id}/work_history/{work_history_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "work_history_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the work history item"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "work_history_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_candidate_work_history_item"
+  },
+  "get_company": {
+    "description": "Get detailed information about a specific company.\n\nGET /companies/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Unique identifier for the company"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_company"
+  },
+  "get_company_custom_field": {
+    "description": "Get a specific custom field for a company.\n\nGET /companies/{id}/custom_fields/{field_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "field_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Custom field ID"
+        }
+      },
+      "required": [
+        "company_id",
+        "field_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_company_custom_field"
+  },
+  "get_company_custom_fields": {
+    "description": "Get custom fields for a company.\n\nGET /companies/{id}/custom_fields",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_company_custom_fields"
+  },
+  "get_company_phone": {
+    "description": "Get a specific company phone.\n\nGET /companies/{id}/phones/{phone_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "phone_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Phone ID"
+        }
+      },
+      "required": [
+        "company_id",
+        "phone_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_company_phone"
+  },
+  "get_company_thumbnail": {
+    "description": "Get a company's thumbnail image.\n\nGET /companies/{id}/thumbnail",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_company_thumbnail"
+  },
+  "get_contact": {
+    "description": "Get detailed information about a specific contact.\n\nGET /contacts/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Unique identifier for the contact"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_contact"
+  },
+  "get_contact_custom_field": {
+    "description": "Get a specific custom field for a contact.\n\nGET /contacts/{id}/custom_fields/{field_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "field_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Custom field ID"
+        }
+      },
+      "required": [
+        "contact_id",
+        "field_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_contact_custom_field"
+  },
+  "get_contact_custom_fields": {
+    "description": "Get custom fields for a contact.\n\nGET /contacts/{id}/custom_fields",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_contact_custom_fields"
+  },
+  "get_contact_thumbnail": {
+    "description": "Get a contact's thumbnail image.\n\nGET /contacts/{id}/thumbnail",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_contact_thumbnail"
+  },
+  "get_job": {
+    "description": "Get detailed information about a specific job.\nWraps: GET /jobs/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        }
+      },
+      "required": [
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_job"
+  },
+  "get_job_application": {
+    "description": "Get details of a specific application.\nWraps: GET /jobs/applications/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "application_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the application"
+        }
+      },
+      "required": [
+        "application_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_job_application"
+  },
+  "get_job_custom_field": {
+    "description": "Get a specific custom field for a job.\nWraps: GET /jobs/{id}/custom_fields/{field_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "field_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the custom field"
+        },
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        }
+      },
+      "required": [
+        "job_id",
+        "field_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_job_custom_field"
+  },
+  "get_job_list": {
+    "description": "Get details of a specific job list.\nWraps: GET /jobs/lists/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        }
+      },
+      "required": [
+        "list_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_job_list"
+  },
+  "get_job_list_item": {
+    "description": "Get a specific item from a job list.\nWraps: GET /jobs/lists/{list_id}/items/{item_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list item"
+        },
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        }
+      },
+      "required": [
+        "list_id",
+        "item_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_job_list_item"
+  },
+  "get_job_status": {
+    "description": "Get a job status definition by ID.\nWraps: GET /jobs/statuses/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "status_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job status definition"
+        }
+      },
+      "required": [
+        "status_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_job_status"
+  },
+  "get_me": {
+    "description": "Get current authenticated user's information.\nWraps: GET /users/current\n\nNOTE: The /users/current endpoint may not exist in the official CATS API v3 spec\nbut is commonly available as a convenience endpoint. Falls back to user info\nfrom the authentication context.\n\nReturns:\n    dict: Current user profile and permissions",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "get_me"
+  },
+  "get_pipeline": {
+    "description": "Get detailed information about a specific pipeline.\nWraps: GET /pipelines/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "pipeline_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the pipeline"
+        }
+      },
+      "required": [
+        "pipeline_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_pipeline"
+  },
+  "get_pipeline_statuses": {
+    "description": "Get available statuses for a pipeline.\nWraps: GET /pipelines/{id}/statuses",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "pipeline_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the pipeline"
+        }
+      },
+      "required": [
+        "pipeline_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_pipeline_statuses"
+  },
+  "get_pipeline_workflow": {
+    "description": "Get details of a specific pipeline workflow.\nWraps: GET /pipelines/workflows/{workflow_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "workflow_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the workflow"
+        }
+      },
+      "required": [
+        "workflow_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_pipeline_workflow"
+  },
+  "get_pipeline_workflow_status": {
+    "description": "Get details of a specific workflow status.\nWraps: GET /pipelines/workflows/{id}/statuses/{status_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "status_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the status"
+        },
+        "workflow_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the workflow"
+        }
+      },
+      "required": [
+        "workflow_id",
+        "status_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_pipeline_workflow_status"
+  },
+  "get_portal": {
+    "description": "Get detailed information about a specific portal.\n\nGET /portals/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "portal_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Unique identifier for the portal"
+        }
+      },
+      "required": [
+        "portal_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_portal"
+  },
+  "get_portal_registration": {
+    "description": "Get portal registration information and requirements.\n\nGET /portals/{id}/registration",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "portal_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Portal ID"
+        }
+      },
+      "required": [
+        "portal_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_portal_registration"
+  },
+  "get_site": {
+    "description": "Get current CATS site information and settings.\nWraps: GET /site\n\nReturns:\n    dict: Site configuration and metadata",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "get_site"
+  },
+  "get_tag": {
+    "description": "Get details of a specific tag.\n\nWraps: GET /tags/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "tag_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the tag"
+        }
+      },
+      "required": [
+        "tag_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_tag"
+  },
+  "get_task": {
+    "description": "Get detailed information about a specific task.\nWraps: GET /tasks/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the task"
+        }
+      },
+      "required": [
+        "task_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_task"
+  },
+  "get_trigger": {
+    "description": "Get details of a specific trigger configuration.\n\nWraps: GET /triggers/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "trigger_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the trigger"
+        }
+      },
+      "required": [
+        "trigger_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_trigger"
+  },
+  "get_user": {
+    "description": "Get details of a specific user.\n\nWraps: GET /users/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the user"
+        }
+      },
+      "required": [
+        "user_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_user"
+  },
+  "get_webhook": {
+    "description": "Get details of a specific webhook configuration.\n\nWraps: GET /webhooks/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "webhook_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the webhook"
+        }
+      },
+      "required": [
+        "webhook_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_webhook"
+  },
+  "get_work_history": {
+    "description": "Get detailed information about a specific work history entry.\n\nGET /work_history/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "work_history_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Unique identifier for the work history entry"
+        }
+      },
+      "required": [
+        "work_history_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_work_history"
+  },
+  "list_activities": {
+    "description": "List all activities with pagination.\n\nGET /activities\n\nActivity types: email, meeting, call_talked, call_lvm, call_missed, text_message, other",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number for pagination (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of activities per page (default: 25, max: 100)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_activities"
+  },
+  "list_backups": {
+    "description": "List all system backups.\n\nWraps: GET /backups",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25, max: 100)",
+          "type": "integer"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Filter by status (pending, processing, completed, expired)"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_backups"
+  },
+  "list_candidate_activities": {
+    "description": "List all activities for a candidate.\nWraps: GET /candidates/{id}/activities",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_candidate_activities"
+  },
+  "list_candidate_attachments": {
+    "description": "List all attachments for a candidate (resume, cover letter, etc).\nWraps: GET /candidates/{id}/attachments",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_candidate_attachments"
+  },
+  "list_candidate_custom_fields": {
+    "description": "Get all custom fields for a candidate.\nWraps: GET /candidates/{id}/custom_fields",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_candidate_custom_fields"
+  },
+  "list_candidate_emails": {
+    "description": "List all email addresses for a candidate.\nWraps: GET /candidates/{id}/emails",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_candidate_emails"
+  },
+  "list_candidate_list_items": {
+    "description": "List all items in a candidate list.\nWraps: GET /candidates/lists/{id}/items",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "list_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_candidate_list_items"
+  },
+  "list_candidate_lists": {
+    "description": "List all candidate lists.\nWraps: GET /candidates/lists",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_candidate_lists"
+  },
+  "list_candidate_phones": {
+    "description": "List all phone numbers for a candidate.\nWraps: GET /candidates/{id}/phones",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_candidate_phones"
+  },
+  "list_candidate_pipelines": {
+    "description": "List all pipelines associated with a candidate.\nWraps: GET /candidates/{id}/pipelines",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_candidate_pipelines"
+  },
+  "list_candidate_tags": {
+    "description": "List all tags assigned to a candidate.\nWraps: GET /candidates/{id}/tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_candidate_tags"
+  },
+  "list_candidate_work_history": {
+    "description": "List all work history entries for a candidate.\nWraps: GET /candidates/{id}/work_history",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_candidate_work_history"
+  },
+  "list_candidates": {
+    "description": "List candidates with pagination (returns SUMMARY by default).\nUse get_candidate(id) for full details of a specific candidate.\nWraps: GET /candidates",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include (default: id,first_name,last_name,email,status,created_date).\n    Set to \"all\" for full API response."
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Number of results per page (default: 10, max: 100)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_candidates"
+  },
+  "list_companies": {
+    "description": "List companies with pagination (returns SUMMARY by default).\nUse get_company(id) for full details of a specific company.\n\nGET /companies",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include, or \"all\" for full response"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number for pagination (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Number of companies per page (default: 10, max: 100)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_companies"
+  },
+  "list_company_activities": {
+    "description": "List all activities for a specific company.\n\nGET /companies/{id}/activities",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Results per page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_company_activities"
+  },
+  "list_company_attachments": {
+    "description": "List all attachments for a company.\n\nGET /companies/{id}/attachments",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Results per page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_company_attachments"
+  },
+  "list_company_contacts": {
+    "description": "List all contacts associated with a company.\n\nGET /companies/{id}/contacts",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Results per page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_company_contacts"
+  },
+  "list_company_departments": {
+    "description": "List all departments within a company.\n\nGET /companies/{id}/departments",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_company_departments"
+  },
+  "list_company_phones": {
+    "description": "List all phone numbers for a company.\n\nGET /companies/{id}/phones",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Results per page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_company_phones"
+  },
+  "list_company_pipelines": {
+    "description": "List all pipelines associated with a company.\n\nGET /companies/{id}/pipelines",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_company_pipelines"
+  },
+  "list_company_tags": {
+    "description": "List all tags applied to a company.\n\nGET /companies/{id}/tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_company_tags"
+  },
+  "list_contact_activities": {
+    "description": "List all activities for a specific contact.\n\nGET /contacts/{id}/activities",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Results per page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_contact_activities"
+  },
+  "list_contact_attachments": {
+    "description": "List all attachments for a contact.\n\nGET /contacts/{id}/attachments",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Results per page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_contact_attachments"
+  },
+  "list_contact_emails": {
+    "description": "List all email addresses for a contact.\n\nGET /contacts/{id}/emails",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Results per page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_contact_emails"
+  },
+  "list_contact_phones": {
+    "description": "List all phone numbers for a contact.\n\nGET /contacts/{id}/phones",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Results per page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_contact_phones"
+  },
+  "list_contact_pipelines": {
+    "description": "List all pipelines associated with a contact.\n\nGET /contacts/{id}/pipelines",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_contact_pipelines"
+  },
+  "list_contact_tags": {
+    "description": "List all tags applied to a contact.\n\nGET /contacts/{id}/tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_contact_tags"
+  },
+  "list_contacts": {
+    "description": "List contacts with pagination (returns SUMMARY by default).\nUse get_contact(id) for full details of a specific contact.\n\nGET /contacts",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include, or \"all\" for full response"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number for pagination (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Number of contacts per page (default: 10, max: 100)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_contacts"
+  },
+  "list_events": {
+    "description": "List system events (audit log stream).\n\nReturns a chronological stream of system changes. Use either\nstarting_after_id or starting_after_timestamp to paginate through\nthe event stream. Events are returned in chronological order.\n\nWraps: GET /events\n\nEvent types include:\n- candidate.created, candidate.updated, candidate.deleted\n- candidate.status_changed\n- job.created, job.updated, job.deleted, job.status_changed\n- pipeline.created, pipeline.deleted, pipeline.status_changed\n- company.created, company.updated, company.deleted\n- contact.created, contact.updated, contact.deleted\n- activity.created, activity.updated, activity.deleted\n- user.created, user.updated, user.deleted",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "starting_after_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Return events after this event ID (for cursor-based pagination)"
+        },
+        "starting_after_timestamp": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Return events after this timestamp (ISO 8601 / RFC 3339)"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_events"
+  },
+  "list_job_application_fields": {
+    "description": "List all fields for a specific job application.\nWraps: GET /jobs/applications/{id}/fields",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "application_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the application"
+        }
+      },
+      "required": [
+        "application_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_job_application_fields"
+  },
+  "list_job_applications": {
+    "description": "List all applications for a specific job.\nWraps: GET /jobs/{id}/applications",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_job_applications"
+  },
+  "list_job_attachments": {
+    "description": "List all attachments for a job.\nWraps: GET /jobs/{id}/attachments",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_job_attachments"
+  },
+  "list_job_custom_fields": {
+    "description": "Get all custom fields for a job.\nWraps: GET /jobs/{id}/custom_fields",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        }
+      },
+      "required": [
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_job_custom_fields"
+  },
+  "list_job_list_items": {
+    "description": "List all items in a specific job list.\nWraps: GET /jobs/lists/{id}/items",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "list_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the list"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "list_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_job_list_items"
+  },
+  "list_job_lists": {
+    "description": "List all job lists/collections.\nWraps: GET /jobs/lists",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_job_lists"
+  },
+  "list_job_pipelines": {
+    "description": "List all pipelines for a job.\nWraps: GET /jobs/{id}/pipelines",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_job_pipelines"
+  },
+  "list_job_statuses": {
+    "description": "List all available job statuses.\nWraps: GET /jobs/statuses\n\nReturns:\n    dict: List of job statuses",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_job_statuses"
+  },
+  "list_job_tags": {
+    "description": "List all tags assigned to a job.\nWraps: GET /jobs/{id}/tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        }
+      },
+      "required": [
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_job_tags"
+  },
+  "list_job_tasks": {
+    "description": "List all tasks associated with a job.\nWraps: GET /jobs/{id}/tasks",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_job_tasks"
+  },
+  "list_jobs": {
+    "description": "List jobs with pagination (returns SUMMARY by default).\nUse get_job(id) for full details of a specific job.\nWraps: GET /jobs",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include, or \"all\" for full response"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Number of results per page (default: 10, max: 100)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_jobs"
+  },
+  "list_pipeline_workflow_statuses": {
+    "description": "List all statuses/stages in a workflow.\nWraps: GET /pipelines/workflows/{id}/statuses",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "workflow_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the workflow"
+        }
+      },
+      "required": [
+        "workflow_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_pipeline_workflow_statuses"
+  },
+  "list_pipeline_workflows": {
+    "description": "List all pipeline workflows.\nWraps: GET /pipelines/workflows\n\nReturns:\n    dict: List of pipeline workflows",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_pipeline_workflows"
+  },
+  "list_pipelines": {
+    "description": "List all pipelines with pagination.\nWraps: GET /pipelines",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_pipelines"
+  },
+  "list_portal_jobs": {
+    "description": "List all jobs published to a specific portal.\n\nGET /portals/{id}/jobs",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Results per page",
+          "type": "integer"
+        },
+        "portal_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Portal ID"
+        }
+      },
+      "required": [
+        "portal_id"
+      ],
+      "type": "object"
+    },
+    "name": "list_portal_jobs"
+  },
+  "list_portals": {
+    "description": "List all job portals/boards.\n\nGET /portals",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number for pagination (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of portals per page (default: 25, max: 100)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_portals"
+  },
+  "list_tags": {
+    "description": "List all tags in the system.\n\nTags are labels used to categorize candidates, jobs, and other entities.\nTo attach/detach tags, use the entity-specific endpoints:\n- POST /candidates/{id}/tags\n- DELETE /candidates/{id}/tags\n- POST /jobs/{id}/tags\n- DELETE /jobs/{id}/tags\n\nWraps: GET /tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25, max: 100)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_tags"
+  },
+  "list_tasks": {
+    "description": "List all tasks with pagination.\nWraps: GET /tasks",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_tasks"
+  },
+  "list_triggers": {
+    "description": "List all configured triggers.\n\nTriggers automatically fire actions when candidates move through pipeline\nstages. Common uses:\n- Send automated emails when status changes\n- Create tasks for recruiters\n- Update custom fields\n- Fire webhooks\n\nNote: Triggers are configured in CATS UI, not via API.\n\nWraps: GET /triggers",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25, max: 100)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_triggers"
+  },
+  "list_users": {
+    "description": "List all users in the organization.\n\nWraps: GET /users",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25, max: 100)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_users"
+  },
+  "list_webhooks": {
+    "description": "List all configured webhooks.\n\nWraps: GET /webhooks\n\nAvailable webhook events (24 types):\n- candidate.created, candidate.updated, candidate.deleted\n- job.created, job.updated, job.deleted, job.status_changed\n- application.created, application.updated, application.status_changed\n- pipeline.status_changed\n- activity.created, activity.updated\n- task.created, task.completed\n- interview.scheduled, interview.completed, interview.cancelled\n- attachment.uploaded, attachment.deleted\n- email.sent, email.received\n- tag.attached, tag.detached\n- trigger.fired",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number to retrieve (default: 1)",
+          "type": "integer"
+        },
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (default: 25, max: 100)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_webhooks"
+  },
+  "parse_resume": {
+    "description": "Parse a resume using AI to extract structured data.\n\nThis is a special endpoint that parses resume content without creating\na candidate record. The extracted data can be used to pre-fill candidate\ncreation forms or validate resume quality.\n\nWraps: POST /attachments/parse\n\nSupported formats: PDF, DOC, DOCX, TXT, RTF",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "file_content": {
+          "description": "Base64-encoded file content",
+          "type": "string"
+        },
+        "filename": {
+          "description": "Original filename with extension",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_content",
+        "filename"
+      ],
+      "type": "object"
+    },
+    "name": "parse_resume"
+  },
+  "publish_job_to_portal": {
+    "description": "Publish a job posting to a portal.\n\nPUT /portals/{portal_id}/jobs/{job_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Job posting ID"
+        },
+        "portal_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Portal ID"
+        }
+      },
+      "required": [
+        "portal_id",
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "publish_job_to_portal"
+  },
+  "replace_candidate_tags": {
+    "description": "Replace all tags for a candidate (removes existing, adds new).\nWraps: POST /candidates/{id}/tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "tag_ids": {
+          "description": "List of tag IDs to assign",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "tag_ids"
+      ],
+      "type": "object"
+    },
+    "name": "replace_candidate_tags"
+  },
+  "replace_company_tags": {
+    "description": "Replace all tags on a company (replaces existing tags).\n\nPOST /companies/{id}/tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "tag_ids": {
+          "description": "List of tag IDs to apply",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "company_id",
+        "tag_ids"
+      ],
+      "type": "object"
+    },
+    "name": "replace_company_tags"
+  },
+  "replace_contact_tags": {
+    "description": "Replace all tags on a contact (replaces existing tags).\n\nPOST /contacts/{id}/tags",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "tag_ids": {
+          "description": "List of tag IDs to apply",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "contact_id",
+        "tag_ids"
+      ],
+      "type": "object"
+    },
+    "name": "replace_contact_tags"
+  },
+  "search_activities": {
+    "description": "Search activities by description or other criteria.\n\nGET /activities/search",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "per_page": {
+          "default": 25,
+          "description": "Number of results per page (max: 100)",
+          "type": "integer"
+        },
+        "query": {
+          "description": "Search query string",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
+    "name": "search_activities"
+  },
+  "search_candidates": {
+    "description": "Search candidates by name, email, or other fields (returns SUMMARY by default).\nUse get_candidate(id) for full details of a specific candidate.\nWraps: GET /candidates/search",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include, or \"all\" for full response"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Number of results per page (default: 10)",
+          "type": "integer"
+        },
+        "query": {
+          "description": "Search query string",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
+    "name": "search_candidates"
+  },
+  "search_companies": {
+    "description": "Search companies by name or other criteria (returns SUMMARY by default).\nUse get_company(id) for full details.\n\nGET /companies/search",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include, or \"all\" for full response"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Number of results per page (default: 10)",
+          "type": "integer"
+        },
+        "query": {
+          "description": "Search query string",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
+    "name": "search_companies"
+  },
+  "search_contacts": {
+    "description": "Search contacts by name, email, or other criteria (returns SUMMARY by default).\nUse get_contact(id) for full details.\n\nGET /contacts/search",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include, or \"all\" for full response"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Number of results per page (default: 10)",
+          "type": "integer"
+        },
+        "query": {
+          "description": "Search query string",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
+    "name": "search_contacts"
+  },
+  "search_jobs": {
+    "description": "Search jobs by title, description, or other fields (returns SUMMARY by default).\nUse get_job(id) for full details of a specific job.\nWraps: GET /jobs/search",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comma-separated fields to include, or \"all\" for full response"
+        },
+        "per_page": {
+          "default": 10,
+          "description": "Number of results per page (default: 10)",
+          "type": "integer"
+        },
+        "query": {
+          "description": "Search query string",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
+    "name": "search_jobs"
+  },
+  "submit_job_application": {
+    "description": "Submit a job application through a portal.\n\nPOST /portals/{portal_id}/jobs/{job_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_data": {
+          "additionalProperties": true,
+          "description": "Candidate information (first_name, last_name, email, resume, etc.)",
+          "type": "object"
+        },
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Job posting ID"
+        },
+        "portal_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Portal ID"
+        }
+      },
+      "required": [
+        "portal_id",
+        "job_id",
+        "candidate_data"
+      ],
+      "type": "object"
+    },
+    "name": "submit_job_application"
+  },
+  "submit_portal_registration": {
+    "description": "Submit portal registration information.\n\nPOST /portals/{id}/registration",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "portal_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Portal ID"
+        },
+        "registration_data": {
+          "additionalProperties": true,
+          "description": "Registration information (varies by portal)",
+          "type": "object"
+        }
+      },
+      "required": [
+        "portal_id",
+        "registration_data"
+      ],
+      "type": "object"
+    },
+    "name": "submit_portal_registration"
+  },
+  "unpublish_job_from_portal": {
+    "description": "Remove a job posting from a portal.\n\nDELETE /portals/{portal_id}/jobs/{job_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Job posting ID"
+        },
+        "portal_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Portal ID"
+        }
+      },
+      "required": [
+        "portal_id",
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "unpublish_job_from_portal"
+  },
+  "update_activity": {
+    "description": "Update an existing activity.\n\nPUT /activities/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "activity_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "ID of activity to update"
+        },
+        "activity_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated type (email, meeting, call_talked, call_lvm, call_missed, text_message, other)"
+        },
+        "completed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mark as completed (true/false)"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated description"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated notes"
+        }
+      },
+      "required": [
+        "activity_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_activity"
+  },
+  "update_candidate": {
+    "description": "Update an existing candidate's information.\nWraps: PUT /candidates/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated email address (optional)"
+        },
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated first name (optional)"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated last name (optional)"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated phone number (optional)"
+        }
+      },
+      "required": [
+        "candidate_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_candidate"
+  },
+  "update_candidate_custom_field": {
+    "description": "Update a specific custom field for a candidate.\nWraps: PUT /candidates/{id}/custom_fields/{field_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "field_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the custom field"
+        },
+        "value": {
+          "description": "The new value for the custom field"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "field_id",
+        "value"
+      ],
+      "type": "object"
+    },
+    "name": "update_candidate_custom_field"
+  },
+  "update_candidate_email": {
+    "description": "Update a candidate's email address.\nWraps: PUT /candidates/{id}/emails/{email_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "email": {
+          "description": "Updated email address",
+          "type": "string"
+        },
+        "email_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the email"
+        },
+        "email_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated email type (optional)"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "email_id",
+        "email"
+      ],
+      "type": "object"
+    },
+    "name": "update_candidate_email"
+  },
+  "update_candidate_phone": {
+    "description": "Update a candidate's phone number.\nWraps: PUT /candidates/{id}/phones/{phone_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "phone": {
+          "description": "Updated phone number",
+          "type": "string"
+        },
+        "phone_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the phone"
+        },
+        "phone_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated phone type (optional)"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "phone_id",
+        "phone"
+      ],
+      "type": "object"
+    },
+    "name": "update_candidate_phone"
+  },
+  "update_candidate_work_history_item": {
+    "description": "Update a work history item for a candidate.\nWraps: PUT /candidates/{id}/work_history/{work_history_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "company": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated company name (optional)"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated description (optional)"
+        },
+        "end_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated end date (optional)"
+        },
+        "start_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated start date (optional)"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated job title (optional)"
+        },
+        "work_history_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the work history item"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "work_history_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_candidate_work_history_item"
+  },
+  "update_company": {
+    "description": "Update an existing company record.\n\nPUT /companies/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated street address"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated city"
+        },
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "ID of company to update"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated company name"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated notes"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated phone number"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated state/province"
+        },
+        "website": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated website URL"
+        },
+        "zip_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated ZIP/postal code"
+        }
+      },
+      "required": [
+        "company_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_company"
+  },
+  "update_company_department": {
+    "description": "Update a company department.\n\nPUT /companies/{id}/departments/{dept_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "department_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Department ID"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated description"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated name"
+        }
+      },
+      "required": [
+        "company_id",
+        "department_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_company_department"
+  },
+  "update_company_phone": {
+    "description": "Update a company phone number.\n\nPUT /companies/{id}/phones/{phone_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated phone number"
+        },
+        "phone_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Phone ID"
+        },
+        "phone_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated type"
+        }
+      },
+      "required": [
+        "company_id",
+        "phone_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_company_phone"
+  },
+  "update_contact": {
+    "description": "Update an existing contact record.\n\nPUT /contacts/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated company association"
+        },
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "ID of contact to update"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated email address"
+        },
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated first name"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated last name"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated notes"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated phone number"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated job title"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_contact"
+  },
+  "update_contact_email": {
+    "description": "Update a contact's email address.\n\nPUT /contacts/{id}/emails/{email_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "email": {
+          "description": "Updated email address",
+          "type": "string"
+        },
+        "email_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Email record ID"
+        },
+        "email_type": {
+          "description": "Updated type (work, personal, other)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contact_id",
+        "email_id",
+        "email",
+        "email_type"
+      ],
+      "type": "object"
+    },
+    "name": "update_contact_email"
+  },
+  "update_contact_phone": {
+    "description": "Update a contact's phone number.\n\nPUT /contacts/{id}/phones/{phone_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "phone": {
+          "description": "Updated phone number",
+          "type": "string"
+        },
+        "phone_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Phone record ID"
+        },
+        "phone_type": {
+          "description": "Updated type (work, mobile, home, other)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contact_id",
+        "phone_id",
+        "phone",
+        "phone_type"
+      ],
+      "type": "object"
+    },
+    "name": "update_contact_phone"
+  },
+  "update_job": {
+    "description": "Update an existing job posting.\nWraps: PUT /jobs/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated job description (optional)"
+        },
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated job location (optional)"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated job status (optional)"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated job title (optional)"
+        }
+      },
+      "required": [
+        "job_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_job"
+  },
+  "update_job_custom_field": {
+    "description": "Update a specific custom field for a job.\nWraps: PUT /jobs/{id}/custom_fields/{field_id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "field_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the custom field"
+        },
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the job"
+        },
+        "value": {
+          "description": "The new value for the custom field"
+        }
+      },
+      "required": [
+        "job_id",
+        "field_id",
+        "value"
+      ],
+      "type": "object"
+    },
+    "name": "update_job_custom_field"
+  },
+  "update_pipeline": {
+    "description": "Update a pipeline's properties.\nWraps: PUT /pipelines/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated pipeline name (optional)"
+        },
+        "pipeline_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the pipeline"
+        },
+        "status_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated status/stage ID (optional)"
+        }
+      },
+      "required": [
+        "pipeline_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_pipeline"
+  },
+  "update_task": {
+    "description": "Update an existing task.\nWraps: PUT /tasks/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "assigned_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated assignee user ID (optional)"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated description (optional)"
+        },
+        "due_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated due date (optional)"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated task status (optional)"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the task"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated task title (optional)"
+        }
+      },
+      "required": [
+        "task_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_task"
+  },
+  "update_work_history": {
+    "description": "Update an existing work history entry.\n\nPUT /work_history/{id}",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated company name"
+        },
+        "currently_employed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Whether candidate is currently employed here"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated job description"
+        },
+        "end_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated end date (YYYY-MM-DD, null if currently employed)"
+        },
+        "start_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated start date (YYYY-MM-DD)"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Updated job title"
+        },
+        "work_history_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "ID of work history to update"
+        }
+      },
+      "required": [
+        "work_history_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_work_history"
+  },
+  "upload_candidate_attachment": {
+    "description": "Upload an attachment for a candidate.\nWraps: POST /candidates/{id}/attachments",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The unique identifier of the candidate"
+        },
+        "file_name": {
+          "description": "Name of the file",
+          "type": "string"
+        },
+        "file_type": {
+          "description": "Type of file (e.g., 'resume', 'cover_letter')",
+          "type": "string"
+        },
+        "file_url": {
+          "description": "URL to the file to upload",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "file_name",
+        "file_type",
+        "file_url"
+      ],
+      "type": "object"
+    },
+    "name": "upload_candidate_attachment"
+  },
+  "upload_company_attachment": {
+    "description": "Upload an attachment to a company.\n\nPOST /companies/{id}/attachments",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Company ID"
+        },
+        "file_data": {
+          "additionalProperties": true,
+          "description": "File upload data (multipart/form-data)",
+          "type": "object"
+        }
+      },
+      "required": [
+        "company_id",
+        "file_data"
+      ],
+      "type": "object"
+    },
+    "name": "upload_company_attachment"
+  },
+  "upload_contact_attachment": {
+    "description": "Upload an attachment to a contact.\n\nPOST /contacts/{id}/attachments",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Contact ID"
+        },
+        "file_data": {
+          "additionalProperties": true,
+          "description": "File upload data (multipart/form-data)",
+          "type": "object"
+        }
+      },
+      "required": [
+        "contact_id",
+        "file_data"
+      ],
+      "type": "object"
+    },
+    "name": "upload_contact_attachment"
+  }
+}

@@ -1,3 +1,57 @@
+> # ARCHIVED - HISTORICAL PRODUCT EXPLORATION
+>
+> **This is not the architecture of this repository, and nothing described below
+> should be built here.**
+>
+> This document designs an entire agentic recruiting *application*: FastAPI
+> services, a Supabase mirror of CATS data, an agent hierarchy, a memory system,
+> a communications layer, staging/dry-run workflows and a frontend.
+>
+> That is effectively an early draft of the **StaffHive product architecture**.
+> It is preserved because the thinking in it is useful - the staging-before-write
+> safety model and the audit-trail requirements in particular. It is archived
+> because it describes the wrong layer.
+>
+> ## Where this work belongs now
+>
+> | Concern in this document | Where it lives |
+> | --- | --- |
+> | Agent hierarchy, reasoning, orchestration | StaffHive / Mastra, RedAI / Google ADK |
+> | Memory (Mem0) | the orchestrator |
+> | Communications: email, SMS, sequences | the orchestrator |
+> | Supabase mirror of CATS data | StaffHive, if it is needed at all |
+> | Frontend | StaffHive |
+> | Staging / dry-run before writes | the orchestrator, using this server's safety metadata |
+> | Candidate ranking and tagging policy | the orchestrator |
+> | CATS API access, schemas, safety classification | **this repository** |
+>
+> CATS-MCP is one adapter for one ATS. It exposes capabilities; it does not
+> decide how they are used. Building the above inside this repository would tie
+> a vendor adapter to one product's business rules and make it unusable for any
+> other consumer - ChatGPT, Claude, Codex, or a future non-CATS ATS.
+>
+> ## What was extracted from this document
+>
+> The genuinely adapter-specific requirements were carried into the redesign:
+>
+> - **Safety classification of mutations** - now `Safety.READ/WRITE/DESTRUCTIVE/BULK/ADMIN`
+>   on every tool, driving both MCP annotations and authorization scopes, so an
+>   orchestrator can enforce approval correctly.
+> - **Audit and correlation metadata** - every CATS request carries a correlation
+>   id that appears in logs and in any error surfaced to the caller.
+> - **Rollback awareness** - destructive tools are explicitly classified and
+>   hinted; the adapter never hides that a call cannot be undone.
+> - **Efficient bulk reads** - `docs/architecture/README.md` covers the composite
+>   read primitives that replaced the proposed data-mirroring layer.
+>
+> The tool count cited below (163) is wrong and was one of five conflicting
+> counts found across the repository. The current figure is generated from the
+> registry. See `docs/architecture/00-audit-gap-report.md`.
+>
+> For the actual architecture, read `docs/architecture/README.md`.
+
+---
+
 # CATS Intelligence Agent System
 
 ## AI-Powered ATS Organization, Tagging, and Workflow Automation
