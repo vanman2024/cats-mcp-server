@@ -26,11 +26,65 @@ logger = get_logger(__name__)
 
 #: Tools always visible in `search` mode, alongside the search/call meta-tools.
 #:
-#: Deliberately minimal and deliberately *not* `get_me`: the audit found that
-#: tool called `GET /users/current`, which does not exist in CATS v3 and returns
-#: 404. Pinning a broken tool as the entry point to the whole server would be
-#: the worst possible choice. `get_site` is the working equivalent.
-PINNED_TOOLS: tuple[str, ...] = ("get_connection_status", "get_site")
+#: Deliberately *not* `get_me`: the audit found that tool called
+#: `GET /users/current`, which does not exist in CATS v3 and returns 404.
+#: Pinning a broken tool as the entry point to the whole server would be the
+#: worst possible choice. `get_site` is the working equivalent.
+#:
+#: Why this set is not minimal
+#: ---------------------------
+#: An unpinned tool costs an extra model round trip every time it is used:
+#: think, search_tools, read five schemas, think again, call_tool. Model turns
+#: dominate wall-clock, so hiding an everyday tool roughly doubles the time of
+#: every task that needs it.
+#:
+#: The five composites are the sharp case. Each exists to collapse N calls into
+#: one - a whole job pipeline, a batch of profiles, who has gone cold - and
+#: leaving them behind search meant the tools built to make this fast were the
+#: ones a model was least likely to find. A client that never discovers
+#: get_candidate_summaries falls back to one get_candidate per person, which is
+#: both slow and expensive against a 500/hour budget.
+#:
+#: The whole catalog is ~48k tokens, which is why `search` exists. This set is
+#: ~7k: affordable to keep resident, and it covers the everyday paths.
+#:
+#: Reads plus one write. Logging an interaction is part of the normal loop, so
+#: create_candidate_activity is pinned; everything destructive stays behind
+#: search, where reaching for it takes a deliberate step.
+PINNED_TOOLS: tuple[str, ...] = (
+    # Entry points and diagnostics.
+    "get_connection_status",
+    "get_site",
+    # Batch primitives: one call instead of N. The reason this list is not tiny.
+    "get_candidate_summaries",
+    "get_candidate_engagement",
+    "get_job_candidate_pool",
+    "get_pipeline_summaries",
+    "get_changed_records",
+    # Finding people.
+    "search_candidates",
+    "filter_candidates",
+    "list_candidates",
+    "get_candidate",
+    # Account-specific screening data (certifications, trade qualifications).
+    "list_candidate_custom_field_definitions",
+    "list_candidate_custom_fields",
+    # Documents. download_attachment returns the file itself for the model to read.
+    "list_candidate_attachments",
+    "download_attachment",
+    # Saved lists, including Do Not Contact.
+    "list_candidate_lists",
+    "list_candidate_list_items",
+    # Contact history, and recording it.
+    "list_candidate_activities",
+    "create_candidate_activity",
+    # Jobs and their pipelines.
+    "list_jobs",
+    "get_job",
+    "filter_jobs",
+    "list_job_pipelines",
+    "list_pipeline_workflows",
+)
 
 
 class CodeModeUnavailableError(RuntimeError):

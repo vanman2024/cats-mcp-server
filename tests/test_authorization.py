@@ -129,15 +129,20 @@ async def test_search_does_not_leak_unauthorized_tools():
 
 
 async def test_search_still_finds_authorized_tools():
-    """Guards against the filter being so aggressive it breaks discovery."""
+    """Guards against the filter being so aggressive it breaks discovery.
+
+    The target is a read tool that is *not* pinned. A pinned tool is already
+    visible, so the transform drops it from search results and it would pass
+    this test without the index being consulted at all.
+    """
     server = build_authed_server(discovery_mode=DiscoveryMode.SEARCH)
     async with asgi_client(server, auth=READER_TOKEN) as client:
         result = await client.call_tool(
-            "search_tools", {"query": "search for candidates by location"}
+            "search_tools", {"query": "previous applicants for a job"}
         )
 
     text = str(result.data or result.content)
-    assert "search_candidates" in text
+    assert "list_job_applications" in text
 
 
 async def test_call_tool_meta_tool_enforces_the_same_authorization():

@@ -13,6 +13,8 @@ module-level toolset registration and could not exercise a running server.
 
 from __future__ import annotations
 
+import json
+
 import httpx2
 import pytest
 from fastmcp import Client
@@ -101,13 +103,39 @@ async def test_removed_broken_tools_are_absent():
 async def test_search_profile_hides_the_catalog_behind_meta_tools():
     server = build_server(discovery_mode=DiscoveryMode.SEARCH)
     async with Client(server) as client:
-        names = {t.name for t in await client.list_tools()}
+        visible = {t.name for t in await client.list_tools()}
 
-    assert "search_tools" in names
-    assert "call_tool" in names
-    # The whole point: 184 schemas must not reach the model up front.
-    assert len(names) < 10, f"search profile leaked {len(names)} tools"
-    assert "list_candidates" not in names
+    assert "search_tools" in visible
+    assert "call_tool" in visible
+    # The long tail stays hidden - that is what the mode is for. The real
+    # ceiling is the byte budget below; this pins the shape.
+    assert len(visible) < 40, f"search profile leaked {len(visible)} tools"
+    assert "list_company_departments" not in visible
+    assert "delete_candidate" not in visible, "destructive tools stay behind search"
+    assert "update_company_custom_field" not in visible
+
+
+#: Resident schema budget for `search` mode, in bytes.
+#:
+#: The real constraint is context, not tool count, so guard the bytes. The full
+#: catalog is ~192KB; the pinned working set is ~27KB. This ceiling leaves room
+#: to pin a few more and fails loudly if someone pins half the catalog and
+#: quietly re-creates the problem the mode exists to solve.
+MAX_RESIDENT_SCHEMA_BYTES = 45_000
+
+
+async def test_the_pinned_set_stays_affordable():
+    server = build_server(discovery_mode=DiscoveryMode.SEARCH)
+    async with Client(server) as client:
+        tools = await client.list_tools()
+
+    resident = sum(
+        len(json.dumps({"n": t.name, "d": t.description, "s": t.input_schema})) for t in tools
+    )
+    assert resident < MAX_RESIDENT_SCHEMA_BYTES, (
+        f"pinned tools cost {resident} bytes up front, over the "
+        f"{MAX_RESIDENT_SCHEMA_BYTES} budget"
+    )
 
 
 async def test_search_profile_pins_a_working_entry_point():
@@ -115,15 +143,35 @@ async def test_search_profile_pins_a_working_entry_point():
     async with Client(server) as client:
         names = {t.name for t in await client.list_tools()}
     for pinned in PINNED_TOOLS:
-        assert pinned in names
+        assert pinned in names, f"{pinned} is named in PINNED_TOOLS but not registered"
     assert "get_me" not in names, "never pin a tool that 404s"
+
+
+async def test_the_batch_tools_are_visible_without_searching():
+    """The tools that exist to collapse N calls into one must be findable.
+
+    An unpinned tool costs an extra model round trip every time it is used. For
+    the composites that is self-defeating: a client that never discovers
+    get_candidate_summaries falls back to one get_candidate per person, which is
+    the exact cost these tools were written to remove.
+    """
+    server = build_server(discovery_mode=DiscoveryMode.SEARCH)
+    async with Client(server) as client:
+        names = {t.name for t in await client.list_tools()}
+
+    for batch_tool in (
+        "get_candidate_summaries",
+        "get_candidate_engagement",
+        "get_job_candidate_pool",
+        "get_pipeline_summaries",
+        "get_changed_records",
+    ):
+        assert batch_tool in names, f"{batch_tool} is hidden behind search"
 
 
 @pytest.mark.parametrize(
     ("query", "expected"),
     [
-        ("search for candidates by location", "search_candidates"),
-        ("candidate activity history last contacted", "list_candidate_activities"),
         ("add a candidate to a job pipeline", "create_pipeline"),
         ("move an application to a new workflow status", "change_pipeline_status"),
         ("delete a candidate", "delete_candidate"),
@@ -131,7 +179,12 @@ async def test_search_profile_pins_a_working_entry_point():
     ],
 )
 async def test_bm25_finds_the_right_tool_for_recruiting_language(query, expected):
-    """Discovery has to work on how a recruiter talks, not on endpoint names."""
+    """Discovery has to work on how a recruiter talks, not on endpoint names.
+
+    Every tool here is deliberately *not* pinned: a pinned tool is already
+    visible, so the transform excludes it from search results. Adding a pinned
+    name to this list tests nothing.
+    """
     server = build_server(discovery_mode=DiscoveryMode.SEARCH)
     async with Client(server) as client:
         result = await client.call_tool("search_tools", {"query": query})
@@ -363,3 +416,19 @@ def test_stdio_does_not_require_an_auth_mode():
     """stdio is a pipe to a process the user started; there is no network surface."""
     server = build_server(transport=Transport.STDIO)
     assert server is not None
+
+
+async def test_no_pinned_tool_is_listed_as_a_bm25_target():
+    """Guards the trap the pinned-set change sprang.
+
+    Pinning search_candidates silently broke a BM25 case: the transform drops
+    already-visible tools from search results, so the assertion started failing
+    on a tool that was working better than before.
+    """
+    targets = {
+        expected
+        for _query, expected in
+        test_bm25_finds_the_right_tool_for_recruiting_language.pytestmark[0].args[1]
+    }
+    overlap = targets & set(PINNED_TOOLS)
+    assert not overlap, f"pinned tools cannot be BM25 search targets: {sorted(overlap)}"
