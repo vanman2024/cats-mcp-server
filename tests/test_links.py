@@ -26,8 +26,8 @@ from cats_mcp.responses.links import (
 )
 from cats_mcp.server import create_server
 
-UI = "https://bigcountryequipmentrepair.catsone.com"
-CANDIDATE_ID = 407813885
+UI = "https://acme.catsone.com"
+CANDIDATE_ID = 400000001
 
 
 class StubCredentials(CredentialProvider):
@@ -270,7 +270,7 @@ async def test_a_sub_collection_row_gets_no_link():
 
 
 async def test_a_membership_row_links_to_the_candidate_not_the_row():
-    """Confirmed against the live account: row 390055557 holds candidate 397943414."""
+    """Confirmed against the live account: row 390000001 holds candidate 400000002."""
 
     def handler(request):
         return httpx2.Response(
@@ -282,8 +282,8 @@ async def test_a_membership_row_links_to_the_candidate_not_the_row():
                 "_embedded": {
                     "items": [
                         {
-                            "id": 390055557,
-                            "candidate_id": 397943414,
+                            "id": 390000001,
+                            "candidate_id": 400000002,
                             "date_created": "2023-05-27T12:34:36-05:00",
                         }
                     ]
@@ -292,8 +292,8 @@ async def test_a_membership_row_links_to_the_candidate_not_the_row():
         )
 
     async with Client(build(handler)) as client:
-        result = await client.call_tool("list_candidate_list_items", {"list_id": 1610515})
+        result = await client.call_tool("list_candidate_list_items", {"list_id": 1600001})
 
     item = result.data["items"][0]
-    assert item["url"].endswith("candidateID=397943414")
-    assert "390055557" not in item["url"], "linked the membership row, not the person"
+    assert item["url"].endswith("candidateID=400000002")
+    assert "390000001" not in item["url"], "linked the membership row, not the person"

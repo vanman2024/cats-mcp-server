@@ -21,7 +21,7 @@ from cats_mcp.http.client import CATSClient
 from cats_mcp.http.site import UIDomainResolver
 from cats_mcp.server import create_server
 
-CANDIDATE_ID = 407813885
+CANDIDATE_ID = 400000001
 
 
 class KeyedCredentials(CredentialProvider):
@@ -51,13 +51,13 @@ def make_client(handler, credentials) -> CATSClient:
 
 async def test_the_domain_comes_from_the_accounts_own_subdomain():
     def handler(request):
-        return httpx2.Response(200, json=site_response("bigcountryequipmentrepair"))
+        return httpx2.Response(200, json=site_response("acme"))
 
     credentials = KeyedCredentials()
     client = make_client(handler, credentials)
     resolver = UIDomainResolver(lambda: client, credentials)
 
-    assert await resolver.resolve() == "https://bigcountryequipmentrepair.catsone.com"
+    assert await resolver.resolve() == "https://acme.catsone.com"
 
 
 async def test_the_lookup_happens_once_per_account():
@@ -164,7 +164,7 @@ async def test_a_tool_result_carries_a_link_with_nothing_configured():
 
     def handler(request):
         if request.url.path.endswith("/site"):
-            return httpx2.Response(200, json=site_response("bigcountryequipmentrepair"))
+            return httpx2.Response(200, json=site_response("acme"))
         return httpx2.Response(
             200,
             json={
@@ -184,7 +184,7 @@ async def test_a_tool_result_carries_a_link_with_nothing_configured():
         result = await mcp_client.call_tool("list_candidates", {})
 
     assert result.data["items"][0]["url"] == (
-        f"https://bigcountryequipmentrepair.catsone.com"
+        f"https://acme.catsone.com"
         f"/index.php?m=candidates&a=show&candidateID={CANDIDATE_ID}"
     )
 

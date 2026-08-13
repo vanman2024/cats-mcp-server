@@ -225,6 +225,11 @@ into a working tool; there is no per-tool request code to write.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | what this owns and does not, consumers, design decisions |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | running it locally, on Horizon, or self-hosted |
 | [docs/TOOLS.md](docs/TOOLS.md) | tool, resource and prompt inventory (generated) |
+| [docs/RECORD-IDENTITY.md](docs/RECORD-IDENTITY.md) | why an id is often not the record you think it is |
+| [docs/RESPONSE-SHAPING.md](docs/RESPONSE-SHAPING.md) | `summary_level`, `fields`, and what never appears in a list |
+| [docs/LINKS.md](docs/LINKS.md) | CATS web-UI links and how the domain is derived |
+| [docs/howto-check-a-list.md](docs/howto-check-a-list.md) | resolving a saved list (Do Not Contact) in three calls |
+| [docs/howto-search-by-location.md](docs/howto-search-by-location.md) | finding people in a region without matching the wrong towns |
 | [docs/CREDENTIAL-SAFETY.md](docs/CREDENTIAL-SAFETY.md) | secret handling and the pre-commit guard |
 
 Superseded documentation is not kept in the working tree; git history has it.

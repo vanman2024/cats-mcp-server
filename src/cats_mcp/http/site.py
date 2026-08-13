@@ -27,8 +27,8 @@ from cats_mcp.http.correlation import get_logger
 logger = get_logger(__name__)
 
 #: CATS accounts are served from `<subdomain>.catsone.com`. Confirmed against a
-#: live account: GET /site returns subdomain="bigcountryequipmentrepair" for
-#: https://bigcountryequipmentrepair.catsone.com.
+#: live account: GET /site returns subdomain="acme" for
+#: https://acme.catsone.com.
 UI_DOMAIN_TEMPLATE = "https://{subdomain}.catsone.com"
 
 

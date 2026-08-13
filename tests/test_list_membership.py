@@ -27,9 +27,9 @@ from cats_mcp.registry.catalog import REGISTRY
 from cats_mcp.responses.links import record_url
 from cats_mcp.server import create_server
 
-UI = "https://bigcountryequipmentrepair.catsone.com"
+UI = "https://acme.catsone.com"
 ROW_ID = 88881111
-CANDIDATE_ID = 407813885
+CANDIDATE_ID = 400000001
 
 
 class StubCredentials(CredentialProvider):
@@ -205,7 +205,7 @@ def test_candidate_id_is_recovered_from_a_link_href():
         {
             "id": ROW_ID,
             "_links": {
-                "self": {"href": f"/candidates/lists/1610515/items/{ROW_ID}"},
+                "self": {"href": f"/candidates/lists/1600001/items/{ROW_ID}"},
                 "candidate": {"href": f"https://api.catsone.com/v3/candidates/{CANDIDATE_ID}"},
             },
         }
@@ -281,7 +281,7 @@ async def test_a_whole_list_is_retrievable_in_one_page():
 
     async with Client(build(handler)) as client:
         result = await client.call_tool(
-            "list_candidate_list_items", {"list_id": 1610515, "per_page": 100}
+            "list_candidate_list_items", {"list_id": 1600001, "per_page": 100}
         )
 
     assert "per_page=100" in seen["url"]

@@ -96,7 +96,7 @@ _SUMMARY_LEVELS = ("compact", "standard", "full")
 #: Navigation relations. These point at pages, not at records.
 _NAVIGATION_RELS = frozenset({"self", "next", "prev", "previous", "first", "last"})
 
-#: Trailing numeric id in a HAL href, e.g. ".../candidates/407813885".
+#: Trailing numeric id in a HAL href, e.g. ".../candidates/400000001".
 _HREF_ID = re.compile(r"/(\d+)/?$")
 
 
