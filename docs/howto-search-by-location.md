@@ -103,9 +103,11 @@ it works. If you determine the right field, add it here.
 `search_candidates` requires `query=`. Passing `q=` or `filter=` returns every
 candidate instead of erroring.
 
-**I need to page through a text search.**
-`search_candidates` takes `per_page` but no `page`. For paginated results, use
-`filter_candidates`, which takes both.
+**I am only seeing the first 25 results.**
+Pass `per_page` and `page`. Every collection tool accepts both. Read `total` to
+see the real size of the match: a free-text search for "mechanic" on this
+account returns `total: 3336`, so a single default page is under 1% of it.
+Follow `next_page` until `has_more` is false.
 
 ## Related
 

@@ -134,19 +134,43 @@ INTENTIONALLY_REWORDED = {
 #: Both are optional, so this is additive and cannot break an existing caller.
 INJECTED_SHAPING_PARAMS = {"summary_level", "fields"}
 
+#: Pagination injected into every SUMMARY tool that did not declare it.
+#:
+#: 34 of 66 list tools had no `page` parameter, so page 2 was unreachable even
+#: where CATS itself advertised it in `_links.next`. search_candidates matched
+#: 3,336 records and could return 25 of them.
+INJECTED_PAGINATION_PARAMS = {"page", "per_page"}
 
-def _shape(schema: dict) -> dict:
-    """The schema with descriptions and injected shaping params stripped.
+
+def _injected(name: str) -> set[str]:
+    """Parameter names this spec gained from its response strategy.
+
+    Computed per spec rather than stripped globally: `page` is genuinely
+    declared on many tools, and blanket-stripping it would hide a regression
+    that removed a real one.
+    """
+    from cats_mcp.registry.build import pagination_params_for, shaping_params_for
+
+    spec = REGISTRY.by_name(name)
+    if spec is None:
+        return set()
+    return {p.name for p in pagination_params_for(spec) + shaping_params_for(spec)}
+
+
+def _shape(schema: dict, injected: set[str] | None = None) -> dict:
+    """The schema with descriptions and injected params stripped.
 
     What remains is the contract that must not have changed: which parameters
     exist, their types, and which are required.
     """
+    injected = injected or set()
     properties = {
         name: {k: v for k, v in prop.items() if k != "description"}
         for name, prop in (schema.get("properties") or {}).items()
-        if name not in INJECTED_SHAPING_PARAMS
+        if name not in injected
     }
-    return {**schema, "properties": properties}
+    required = [r for r in (schema.get("required") or []) if r not in injected]
+    return {**schema, "properties": properties, "required": required}
 
 
 async def test_schemas_keep_their_contract(registered_tools, expected):
@@ -159,23 +183,20 @@ async def test_schemas_keep_their_contract(registered_tools, expected):
     differences = [
         name
         for name in sorted(checked)
-        if _shape(expected[name].get("input_schema") or {})
-        != _shape(registered_tools[name].parameters or {})
+        if _shape(expected[name].get("input_schema") or {}, _injected(name))
+        != _shape(registered_tools[name].parameters or {}, _injected(name))
     ]
     assert not differences, f"tool schemas changed: {differences}"
 
 
 async def test_untouched_tools_are_still_byte_identical(registered_tools, expected):
     """Tools with no deliberate change must match the baseline exactly."""
-    from cats_mcp.registry.build import shaping_params_for
-
     unchanged = []
     for name in sorted(set(expected) & set(registered_tools)):
         if name in INTENTIONALLY_REWORDED:
             continue
-        spec = REGISTRY.by_name(name)
-        if spec and shaping_params_for(spec):
-            continue  # gained shaping params, checked separately
+        if _injected(name):
+            continue  # gained shaping or pagination params, checked separately
         unchanged.append(name)
 
     differences = [
@@ -218,8 +239,8 @@ async def test_reworded_tools_kept_their_schema_shape(registered_tools, expected
     differences = [
         name
         for name in sorted(INTENTIONALLY_REWORDED & set(registered_tools))
-        if _shape(expected[name].get("input_schema") or {})
-        != _shape(registered_tools[name].parameters or {})
+        if _shape(expected[name].get("input_schema") or {}, _injected(name))
+        != _shape(registered_tools[name].parameters or {}, _injected(name))
     ]
     assert not differences, f"reworded tools changed shape, not just wording: {differences}"
 
@@ -324,3 +345,68 @@ def test_summary_responses_declare_a_collection_key():
     for spec in REGISTRY:
         if spec.response is ResponseStrategy.SUMMARY:
             assert spec.collection_key, spec.name
+
+
+# --- pagination ------------------------------------------------------------
+#
+# 34 of 66 collection tools had no `page` parameter. CATS advertised page 2 in
+# its own `_links.next` and the tool could not send it: search_candidates
+# matched 3,336 records and returned 25, and 16 of 41 custom field definitions
+# were unreachable - the ids an account screens on.
+
+
+async def test_every_collection_tool_can_reach_page_two(registered_tools):
+    from cats_mcp.registry.models import ResponseStrategy
+
+    missing = []
+    for spec in REGISTRY:
+        if spec.response is not ResponseStrategy.SUMMARY:
+            continue
+        properties = (registered_tools[spec.name].parameters or {}).get("properties", {})
+        if not INJECTED_PAGINATION_PARAMS <= set(properties):
+            missing.append(spec.name)
+    assert not missing, f"collection tools that cannot paginate: {missing}"
+
+
+async def test_pagination_is_optional(registered_tools):
+    """Additive only - an existing caller must not have to change."""
+    from cats_mcp.registry.models import ResponseStrategy
+
+    for spec in REGISTRY:
+        if spec.response is not ResponseStrategy.SUMMARY:
+            continue
+        required = set((registered_tools[spec.name].parameters or {}).get("required") or [])
+        assert not (INJECTED_PAGINATION_PARAMS & required), spec.name
+
+
+def test_injected_pagination_actually_reaches_the_query_string():
+    """A parameter in the schema that never leaves the process is worse than none.
+
+    `build_signature` and `split_arguments` read the same parameter list for
+    exactly this reason: the tool advertised `page`, the request builder looked
+    it up in `spec.params`, missed it, and dropped it.
+    """
+    from cats_mcp.registry.build import split_arguments
+
+    spec = REGISTRY.by_name("search_candidates")
+    assert spec is not None
+    assert "page" not in {p.name for p in spec.params}, "spec now declares page; pick another"
+
+    args = {"query": "mechanic", "page": 2, "per_page": 100}
+    _endpoint, query, _body = split_arguments(spec, args)
+    assert query["page"] == 2
+    assert query["per_page"] == 100
+
+
+def test_shaping_params_are_still_never_sent_upstream():
+    """They are consumed by the shaper; CATS must never see them."""
+    from cats_mcp.registry.build import split_arguments
+
+    spec = REGISTRY.by_name("list_candidates")
+    assert spec is not None
+    _endpoint, query, body = split_arguments(
+        spec, {"summary_level": "standard", "fields": "id", "page": 3}
+    )
+    assert "summary_level" not in query and "fields" not in query
+    assert not body
+    assert query["page"] == 3
