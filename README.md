@@ -157,11 +157,21 @@ that is the difference between one request and fifty against a 500/hour budget.
 
 ### Links back to CATS
 
-Set `CATS_UI_BASE_URL` and every record carries a `url` field pointing at it in
-the CATS web UI. Consumers were otherwise building these by hand and getting
-them wrong - CATS uses `index.php?m=candidates&a=show&candidateID=...`, not a
-REST-style `/candidates/{id}` path, so hand-built links look right in a
-spreadsheet and 404 when clicked.
+Set `CATS_UI_BASE_URL` and candidate and job records carry a `url` field
+pointing at them in the CATS web UI. Consumers were otherwise building these by
+hand and getting them wrong - CATS uses
+`index.php?m=candidates&a=show&candidateID=...`, not a REST-style
+`/candidates/{id}` path, so hand-built links look right in a spreadsheet and
+404 when clicked.
+
+A link is only emitted where the id genuinely identifies that record. A tool is
+tagged with the resource it belongs to, not the shape of the rows it returns, so
+`list_candidate_attachments` is a candidate tool returning attachments -
+building a candidate link from an attachment id yields a working link to an
+unrelated real person, which returns 200 and so is never reported as an error.
+Saved-list membership rows are the one exception that still links: the row names
+its candidate in `candidate_id`, so the link is built from that, never the row's
+own `id`.
 
 Unset, no link is emitted at all. A missing link is recoverable; a wrong one is
 not noticed until someone tries to use it.
