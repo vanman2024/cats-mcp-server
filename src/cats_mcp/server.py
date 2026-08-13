@@ -27,6 +27,7 @@ from cats_mcp.credentials.env import EnvCredentialProvider
 from cats_mcp.discovery.profiles import transforms_for
 from cats_mcp.http.client import CATSClient
 from cats_mcp.http.correlation import configure_logging, get_logger
+from cats_mcp.http.site import UIDomainResolver
 from cats_mcp.registry.build import register_all
 from cats_mcp.registry.catalog import REGISTRY
 from cats_mcp.resources import context as context_resources
@@ -116,12 +117,19 @@ def create_server(
         lifespan=lifespan,
     )
 
+    # The CATS web-UI domain is a property of the account, not of this process:
+    # `GET /site` returns the subdomain for whichever credential is in play. So
+    # it is resolved per call and cached per account, which is what keeps links
+    # correct if callers ever bring different CATS accounts. `CATS_UI_BASE_URL`
+    # still overrides, for a vanity domain or to skip the lookup entirely.
+    ui_domain = UIDomainResolver(client_getter, credentials, settings.ui_base_url)
+
     registered = register_all(
         mcp,
         selected,
         client_getter,
         enforce_auth=enforce_auth,
-        ui_base_url=settings.ui_base_url,
+        ui_domain=ui_domain,
     )
 
     # Composite read primitives, registered only alongside a full catalog.

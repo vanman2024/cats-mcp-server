@@ -24,6 +24,7 @@ dependencies = [
 dev = [
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
+    "pytest-xdist==3.8.0",
     "ruff==0.16.2",
 ]
 
@@ -70,6 +71,14 @@ ignore-names = ["CATSAPIError"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Run in parallel by default. Almost all of this suite's wall-clock is server
+# construction, not assertions: create_server() registers 203 tools, and FastMCP
+# builds a pydantic schema per tool signature, which costs ~0.9s. Nearly every
+# test builds its own server, so the suite spends minutes doing that and
+# milliseconds testing. Splitting across cores is the cheap half of the fix; not
+# rebuilding the server per test is the real one.
+# Override with `-n0` when a failure needs readable, serialised output.
+addopts = "-n auto --dist loadfile"
 markers = [
     "integration: requires a live CATS API and a real credential",
 ]

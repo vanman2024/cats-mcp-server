@@ -27,9 +27,9 @@ from cats_mcp.registry.catalog import REGISTRY
 from cats_mcp.responses.links import record_url
 from cats_mcp.server import create_server
 
-UI = "https://bigcountryequipmentrepair.catsone.com"
+UI = "https://acme.catsone.com"
 ROW_ID = 88881111
-CANDIDATE_ID = 407813885
+CANDIDATE_ID = 400000001
 
 
 class StubCredentials(CredentialProvider):
@@ -85,12 +85,27 @@ async def test_the_row_id_is_not_mistaken_for_a_candidate_id():
 
 
 async def test_no_link_is_built_from_a_membership_row_id():
-    """It previously produced a candidate URL pointing at a different person."""
+    """It previously produced a candidate URL pointing at a different person.
+
+    The row id and the candidate id are both real ids on this account, so the
+    wrong one still resolves - to somebody else. Nothing 404s and nothing warns.
+    """
     async with Client(build(membership_rows)) as client:
         result = await client.call_tool("list_candidate_list_items", {"list_id": 1})
 
     for row in result.data["items"]:
-        assert "url" not in row, "a link built from a row id points at the wrong record"
+        assert str(row["id"]) not in row.get("url", ""), (
+            "a link built from a row id points at the wrong record"
+        )
+
+
+async def test_a_membership_row_links_to_the_person_it_names():
+    """`candidate_id` is a real top-level field, so the link can be built correctly."""
+    async with Client(build(membership_rows)) as client:
+        result = await client.call_tool("list_candidate_list_items", {"list_id": 1})
+
+    for row in result.data["items"]:
+        assert row["url"].endswith(f"candidateID={row['candidate_id']}")
 
 
 def test_list_membership_resources_have_no_url_format():
@@ -190,7 +205,7 @@ def test_candidate_id_is_recovered_from_a_link_href():
         {
             "id": ROW_ID,
             "_links": {
-                "self": {"href": f"/candidates/lists/1610515/items/{ROW_ID}"},
+                "self": {"href": f"/candidates/lists/1600001/items/{ROW_ID}"},
                 "candidate": {"href": f"https://api.catsone.com/v3/candidates/{CANDIDATE_ID}"},
             },
         }
@@ -266,7 +281,7 @@ async def test_a_whole_list_is_retrievable_in_one_page():
 
     async with Client(build(handler)) as client:
         result = await client.call_tool(
-            "list_candidate_list_items", {"list_id": 1610515, "per_page": 100}
+            "list_candidate_list_items", {"list_id": 1600001, "per_page": 100}
         )
 
     assert "per_page=100" in seen["url"]

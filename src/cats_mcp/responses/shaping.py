@@ -30,7 +30,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from cats_mcp.registry.models import ResponseStrategy, ToolSpec
-from cats_mcp.responses.links import record_url
+from cats_mcp.responses.links import endpoint_returns_the_record, record_url
 
 #: Compact projections per resource. Every one includes `id`, because an id is
 #: what lets the model fetch detail later.
@@ -96,7 +96,7 @@ _SUMMARY_LEVELS = ("compact", "standard", "full")
 #: Navigation relations. These point at pages, not at records.
 _NAVIGATION_RELS = frozenset({"self", "next", "prev", "previous", "first", "last"})
 
-#: Trailing numeric id in a HAL href, e.g. ".../candidates/407813885".
+#: Trailing numeric id in a HAL href, e.g. ".../candidates/400000001".
 _HREF_ID = re.compile(r"/(\d+)/?$")
 
 
@@ -284,14 +284,49 @@ def shape_detail(
     )
 
 
+#: Resources whose rows *reference* a linkable record rather than being one.
+#: A saved-list membership row has its own `id`; the person is `candidate_id`.
+_REFERENCED_RECORD = {
+    "list_item": (("candidate_id", "candidate"), ("job_id", "job")),
+}
+
+
+def spec_can_emit_url(spec: ToolSpec) -> bool:
+    """Whether this tool could ever attach a `url`.
+
+    Lets the caller skip resolving the account's UI domain - which costs a CATS
+    request - for the majority of tools that would never use it.
+    """
+    if spec.response not in (ResponseStrategy.SUMMARY, ResponseStrategy.DETAIL):
+        return False
+    if spec.resource in _REFERENCED_RECORD:
+        return True
+    return endpoint_returns_the_record(spec.resource, spec.endpoint)
+
+
 def _with_url(item: Any, spec: ToolSpec, ui_base_url: str) -> Any:
     """Attach a link to the record in the CATS web UI, when one can be built.
 
     Emitted by the adapter rather than left to the caller, because consumers
     were constructing a REST-looking `/candidates/{id}` path that does not
     exist - links that look right in a spreadsheet and 404 when clicked.
+
+    The id has to be the *right* id. A tool is tagged with the resource it
+    belongs to, not the shape of the rows it returns, so `list_candidate_tags`
+    is `resource="candidate"` while each row is a tag. Linking on the resource
+    alone built a candidate URL out of a tag id: a working link to an unrelated
+    real person, which is a 200 OK and so worse than a dead one.
     """
     if not isinstance(item, dict):
+        return item
+
+    for field, resource in _REFERENCED_RECORD.get(spec.resource, ()):
+        url = record_url(ui_base_url, resource, item.get(field))
+        if url:
+            item["url"] = url
+            return item
+
+    if not endpoint_returns_the_record(spec.resource, spec.endpoint):
         return item
     url = record_url(ui_base_url, spec.resource, item.get("id"))
     if url:

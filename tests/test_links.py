@@ -17,11 +17,17 @@ from fastmcp import Client
 from cats_mcp.config import DiscoveryMode, Settings
 from cats_mcp.credentials.base import CATSCredential, CredentialProvider
 from cats_mcp.http.client import CATSClient
-from cats_mcp.responses.links import record_url
+from cats_mcp.registry.catalog import REGISTRY
+from cats_mcp.registry.models import ResponseStrategy
+from cats_mcp.responses.links import (
+    endpoint_returns_the_record,
+    has_url_format,
+    record_url,
+)
 from cats_mcp.server import create_server
 
-UI = "https://bigcountryequipmentrepair.catsone.com"
-CANDIDATE_ID = 407813885
+UI = "https://acme.catsone.com"
+CANDIDATE_ID = 400000001
 
 
 class StubCredentials(CredentialProvider):
@@ -164,3 +170,130 @@ async def test_job_results_carry_a_working_link():
     assert result.data["items"][0]["url"] == (
         f"{UI}/index.php?m=joborders&a=show&jobOrderID=16796514"
     )
+
+
+# --- linking the right id --------------------------------------------------
+#
+# A tool is tagged with the resource it belongs to, not the shape of the rows it
+# returns: `list_candidate_attachments` is resource="candidate" while each row is
+# an attachment. Building the link from `spec.resource` alone therefore produced
+# a candidate URL out of an attachment id - a working link to an unrelated real
+# person. That is a 200 OK, so nothing anywhere reports a problem.
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "/candidates",  # the collection itself
+        "/candidates/{candidate_id}",  # one member of it
+        "/candidates/search",  # still returns candidates
+    ],
+)
+def test_endpoints_that_return_the_record_itself(endpoint):
+    assert endpoint_returns_the_record("candidate", endpoint)
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "/candidates/{candidate_id}/attachments",  # rows are attachments
+        "/candidates/{candidate_id}/tags",  # rows are tags
+        "/candidates/{candidate_id}/work_history",  # rows are work history
+        "/candidates/{candidate_id}/emails/{email_id}",  # one email
+        "/candidates/custom_fields",  # rows are field definitions
+        "/candidates/custom_fields/{field_id}",  # one definition
+    ],
+)
+def test_endpoints_whose_rows_are_something_else(endpoint):
+    assert not endpoint_returns_the_record("candidate", endpoint)
+
+
+def test_a_sub_collection_of_jobs_is_not_a_job():
+    assert endpoint_returns_the_record("job", "/jobs")
+    assert not endpoint_returns_the_record("job", "/jobs/statuses")
+    assert not endpoint_returns_the_record("job", "/jobs/{job_id}/pipelines")
+
+
+def test_an_unlinkable_resource_never_qualifies():
+    assert not endpoint_returns_the_record("company", "/companies")
+
+
+#: The complete set of tools permitted to emit a UI link. Pinned by name rather
+#: than counted, so adding a tool that silently starts linking fails here with
+#: the name of the offender.
+MAY_EMIT_A_LINK = {
+    "list_candidates",
+    "get_candidate",
+    "search_candidates",
+    "filter_candidates",
+    "list_jobs",
+    "get_job",
+    "search_jobs",
+    "filter_jobs",
+}
+
+
+def test_only_the_approved_tools_emit_a_link():
+    emitting = {
+        spec.name
+        for spec in REGISTRY
+        if spec.response in (ResponseStrategy.SUMMARY, ResponseStrategy.DETAIL)
+        and has_url_format(spec.resource)
+        and endpoint_returns_the_record(spec.resource, spec.endpoint)
+    }
+    assert emitting == MAY_EMIT_A_LINK
+
+
+async def test_a_sub_collection_row_gets_no_link():
+    """An attachment id must never be dressed up as a candidate id."""
+
+    def handler(request):
+        return httpx2.Response(
+            200,
+            json={
+                "count": 1,
+                "total": 1,
+                "_links": {},
+                "_embedded": {
+                    "attachments": [{"id": 55501, "filename": "resume.pdf"}]
+                },
+            },
+        )
+
+    async with Client(build(handler)) as client:
+        result = await client.call_tool(
+            "list_candidate_attachments", {"candidate_id": CANDIDATE_ID}
+        )
+
+    item = result.data["items"][0]
+    assert "url" not in item, f"attachment 55501 was linked as a candidate: {item}"
+
+
+async def test_a_membership_row_links_to_the_candidate_not_the_row():
+    """Confirmed against the live account: row 390000001 holds candidate 400000002."""
+
+    def handler(request):
+        return httpx2.Response(
+            200,
+            json={
+                "count": 1,
+                "total": 299,
+                "_links": {},
+                "_embedded": {
+                    "items": [
+                        {
+                            "id": 390000001,
+                            "candidate_id": 400000002,
+                            "date_created": "2023-05-27T12:34:36-05:00",
+                        }
+                    ]
+                },
+            },
+        )
+
+    async with Client(build(handler)) as client:
+        result = await client.call_tool("list_candidate_list_items", {"list_id": 1600001})
+
+    item = result.data["items"][0]
+    assert item["url"].endswith("candidateID=400000002")
+    assert "390000001" not in item["url"], "linked the membership row, not the person"

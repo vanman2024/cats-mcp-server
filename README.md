@@ -52,7 +52,7 @@ deployment environment.
 | --- | --- | --- |
 | `CATS_API_KEY` | - | **Required.** CATS API key |
 | `CATS_API_BASE_URL` | `https://api.catsone.com/v3` | API base URL |
-| `CATS_UI_BASE_URL` | - | e.g. `https://acme.catsone.com`; adds a `url` to each record |
+| `CATS_UI_BASE_URL` | derived from `GET /site` | Override only; e.g. a vanity domain |
 | `CATS_DISCOVERY_MODE` | `search` | `raw`, `search` or `code` |
 | `CATS_TOOLSETS` | all | e.g. `candidates,jobs,pipelines` |
 | `CATS_TRANSPORT` | `stdio` | `stdio` or `http` |
@@ -157,11 +157,29 @@ that is the difference between one request and fifty against a 500/hour budget.
 
 ### Links back to CATS
 
-Set `CATS_UI_BASE_URL` and every record carries a `url` field pointing at it in
-the CATS web UI. Consumers were otherwise building these by hand and getting
-them wrong - CATS uses `index.php?m=candidates&a=show&candidateID=...`, not a
-REST-style `/candidates/{id}` path, so hand-built links look right in a
-spreadsheet and 404 when clicked.
+Candidate and job records carry a `url` field pointing at them in the CATS web
+UI. Consumers were otherwise building these by hand and getting them wrong -
+CATS uses `index.php?m=candidates&a=show&candidateID=...`, not a REST-style
+`/candidates/{id}` path, so hand-built links look right in a spreadsheet and
+404 when clicked.
+
+**The domain is derived, not configured.** `GET /site` returns the account's
+subdomain, and which account that is follows from the API key, so the adapter
+reads it from the same credential it is already using - once per account, cached
+for the process, and skipped entirely for the tools that can never emit a link.
+That is what keeps links correct if different callers bring different CATS
+accounts: a single configured value would hand one of them links into the other
+company's CATS. Set `CATS_UI_BASE_URL` only to override - a vanity domain, or to
+avoid the lookup.
+
+A link is only emitted where the id genuinely identifies that record. A tool is
+tagged with the resource it belongs to, not the shape of the rows it returns, so
+`list_candidate_attachments` is a candidate tool returning attachments -
+building a candidate link from an attachment id yields a working link to an
+unrelated real person, which returns 200 and so is never reported as an error.
+Saved-list membership rows are the one exception that still links: the row names
+its candidate in `candidate_id`, so the link is built from that, never the row's
+own `id`.
 
 Unset, no link is emitted at all. A missing link is recoverable; a wrong one is
 not noticed until someone tries to use it.
@@ -207,6 +225,11 @@ into a working tool; there is no per-tool request code to write.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | what this owns and does not, consumers, design decisions |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | running it locally, on Horizon, or self-hosted |
 | [docs/TOOLS.md](docs/TOOLS.md) | tool, resource and prompt inventory (generated) |
+| [docs/RECORD-IDENTITY.md](docs/RECORD-IDENTITY.md) | why an id is often not the record you think it is |
+| [docs/RESPONSE-SHAPING.md](docs/RESPONSE-SHAPING.md) | `summary_level`, `fields`, and what never appears in a list |
+| [docs/LINKS.md](docs/LINKS.md) | CATS web-UI links and how the domain is derived |
+| [docs/howto-check-a-list.md](docs/howto-check-a-list.md) | resolving a saved list (Do Not Contact) in three calls |
+| [docs/howto-search-by-location.md](docs/howto-search-by-location.md) | finding people in a region without matching the wrong towns |
 | [docs/CREDENTIAL-SAFETY.md](docs/CREDENTIAL-SAFETY.md) | secret handling and the pre-commit guard |
 
 Superseded documentation is not kept in the working tree; git history has it.

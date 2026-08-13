@@ -102,6 +102,12 @@ LIVING_DOCS = [
     "docs/DEPLOYMENT.md",
     "docs/TOOLS.md",
     "docs/CREDENTIAL-SAFETY.md",
+    # Diataxis set covering the id-identity work.
+    "docs/RECORD-IDENTITY.md",  # explanation
+    "docs/RESPONSE-SHAPING.md",  # reference
+    "docs/LINKS.md",  # reference
+    "docs/howto-check-a-list.md",  # how-to
+    "docs/howto-search-by-location.md",  # how-to
 ]
 
 

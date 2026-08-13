@@ -254,8 +254,10 @@ SPECS: list[ToolSpec] = [
                     "municipality, use 'exactly' and run one filter per value. "
                     "Options: 'contains' (reliable only for single words), "
                     "'exactly', 'is_empty', 'greater_than', 'less_than', 'between', "
-                    "'geo_distance' (radius from a postal code - prefer this for "
-                    "'near X' rather than listing towns)."
+                    "'geo_distance' (documented as a radius from a postal code, but "
+                    "the field it applies to is unconfirmed - it was rejected on both "
+                    "'city' and 'postal_code', so prefer an explicit list of values "
+                    "with 'exactly')."
                 ),
                 location=ParamLocation.BODY,
                 wire_name="filter",

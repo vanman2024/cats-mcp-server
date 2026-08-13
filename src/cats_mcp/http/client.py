@@ -115,8 +115,14 @@ class CATSClient:
         json: Any | None = None,
         context: Any | None = None,
         raw_bytes: bool = False,
+        max_attempts: int | None = None,
     ) -> Any:
         """Perform one CATS API call, with retries, and return the parsed body.
+
+        `max_attempts=1` disables retries for calls whose result is optional.
+        Retrying with backoff is right for a call the caller is waiting on, and
+        wrong for a background nicety: it turns an unavailable endpoint into
+        seconds of added latency on somebody else's answer.
 
         `raw_bytes=True` returns a `BinaryPayload` with the body intact, for
         endpoints that serve files. It must be requested explicitly: the default
@@ -145,7 +151,7 @@ class CATSClient:
         clean_params = {k: v for k, v in params.items() if v is not None} if params else None
 
         last_error: CATSAPIError | None = None
-        attempts = max(1, self._settings.max_retries)
+        attempts = max(1, max_attempts if max_attempts is not None else self._settings.max_retries)
 
         for attempt in range(attempts):
             try:
