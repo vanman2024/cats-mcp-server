@@ -52,7 +52,7 @@ deployment environment.
 | --- | --- | --- |
 | `CATS_API_KEY` | - | **Required.** CATS API key |
 | `CATS_API_BASE_URL` | `https://api.catsone.com/v3` | API base URL |
-| `CATS_UI_BASE_URL` | - | e.g. `https://acme.catsone.com`; adds a `url` to each record |
+| `CATS_UI_BASE_URL` | derived from `GET /site` | Override only; e.g. a vanity domain |
 | `CATS_DISCOVERY_MODE` | `search` | `raw`, `search` or `code` |
 | `CATS_TOOLSETS` | all | e.g. `candidates,jobs,pipelines` |
 | `CATS_TRANSPORT` | `stdio` | `stdio` or `http` |
@@ -157,12 +157,20 @@ that is the difference between one request and fifty against a 500/hour budget.
 
 ### Links back to CATS
 
-Set `CATS_UI_BASE_URL` and candidate and job records carry a `url` field
-pointing at them in the CATS web UI. Consumers were otherwise building these by
-hand and getting them wrong - CATS uses
-`index.php?m=candidates&a=show&candidateID=...`, not a REST-style
+Candidate and job records carry a `url` field pointing at them in the CATS web
+UI. Consumers were otherwise building these by hand and getting them wrong -
+CATS uses `index.php?m=candidates&a=show&candidateID=...`, not a REST-style
 `/candidates/{id}` path, so hand-built links look right in a spreadsheet and
 404 when clicked.
+
+**The domain is derived, not configured.** `GET /site` returns the account's
+subdomain, and which account that is follows from the API key, so the adapter
+reads it from the same credential it is already using - once per account, cached
+for the process, and skipped entirely for the tools that can never emit a link.
+That is what keeps links correct if different callers bring different CATS
+accounts: a single configured value would hand one of them links into the other
+company's CATS. Set `CATS_UI_BASE_URL` only to override - a vanity domain, or to
+avoid the lookup.
 
 A link is only emitted where the id genuinely identifies that record. A tool is
 tagged with the resource it belongs to, not the shape of the rows it returns, so

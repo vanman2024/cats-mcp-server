@@ -157,19 +157,18 @@ async def test_call_tool_reaches_a_hidden_tool_in_search_mode():
 
 
 async def test_tool_calls_the_expected_cats_endpoint():
-    seen = {}
+    """Recorded as a list: a linkable tool may also probe /site for the UI domain."""
+    seen = []
 
     def handler(request):
-        seen["method"] = request.method
-        seen["path"] = request.url.path
+        seen.append((request.method, request.url.path))
         return httpx2.Response(200, json={"id": 7})
 
     server = build_server(handler, discovery_mode=DiscoveryMode.RAW)
     async with Client(server) as client:
         await client.call_tool("get_candidate", {"candidate_id": 7})
 
-    assert seen["method"] == "GET"
-    assert seen["path"].endswith("/candidates/7")
+    assert ("GET", "/v3/candidates/7") in seen, seen
 
 
 async def test_tag_ids_are_wrapped_as_cats_requires():

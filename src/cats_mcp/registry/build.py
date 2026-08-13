@@ -150,10 +150,20 @@ def split_arguments(spec: ToolSpec, kwargs: dict[str, Any]) -> tuple[str, dict, 
 
 
 def make_tool_function(
-    spec: ToolSpec, client_getter: Callable[[], Any], ui_base_url: str = ""
+    spec: ToolSpec, client_getter: Callable[[], Any], ui_domain: Any = ""
 ) -> Callable:
-    """Create the async callable FastMCP will register for this spec."""
+    """Create the async callable FastMCP will register for this spec.
+
+    `ui_domain` is either a fixed base URL or a `UIDomainResolver`, which reads
+    the account's own subdomain from `GET /site`. Resolving it per call rather
+    than baking one value into the process is what keeps links correct when
+    different callers bring different CATS accounts.
+    """
     sig_params, annotations = build_signature(spec)
+    from cats_mcp.responses.shaping import spec_can_emit_url
+
+    # Most tools can never attach a URL, so they must never pay for looking one up.
+    links_possible = spec_can_emit_url(spec)
 
     async def impl(**kwargs: Any) -> Any:
         run_id = set_run_id()
@@ -198,7 +208,11 @@ def make_tool_function(
 
         from cats_mcp.responses.shaping import shape_response
 
-        return shape_response(spec, raw, kwargs, ui_base_url)
+        base_url = ""
+        if links_possible:
+            base_url = ui_domain if isinstance(ui_domain, str) else await ui_domain.resolve()
+
+        return shape_response(spec, raw, kwargs, base_url)
 
     impl.__name__ = spec.name
     impl.__qualname__ = spec.name
@@ -215,10 +229,10 @@ def register_spec(
     client_getter: Callable[[], Any],
     *,
     enforce_auth: bool,
-    ui_base_url: str = "",
+    ui_domain: Any = "",
 ) -> None:
     """Register one spec as a tool on the given FastMCP server."""
-    fn = make_tool_function(spec, client_getter, ui_base_url)
+    fn = make_tool_function(spec, client_getter, ui_domain)
 
     annotations = dict(_ANNOTATIONS[spec.safety])
     # CATS is an external system whose state changes outside this server.
@@ -263,12 +277,10 @@ def register_all(
     client_getter: Callable[[], Any],
     *,
     enforce_auth: bool,
-    ui_base_url: str = "",
+    ui_domain: Any = "",
 ) -> int:
     for spec in specs:
-        register_spec(
-            mcp, spec, client_getter, enforce_auth=enforce_auth, ui_base_url=ui_base_url
-        )
+        register_spec(mcp, spec, client_getter, enforce_auth=enforce_auth, ui_domain=ui_domain)
     return len(specs)
 
 

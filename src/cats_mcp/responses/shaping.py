@@ -291,6 +291,19 @@ _REFERENCED_RECORD = {
 }
 
 
+def spec_can_emit_url(spec: ToolSpec) -> bool:
+    """Whether this tool could ever attach a `url`.
+
+    Lets the caller skip resolving the account's UI domain - which costs a CATS
+    request - for the majority of tools that would never use it.
+    """
+    if spec.response not in (ResponseStrategy.SUMMARY, ResponseStrategy.DETAIL):
+        return False
+    if spec.resource in _REFERENCED_RECORD:
+        return True
+    return endpoint_returns_the_record(spec.resource, spec.endpoint)
+
+
 def _with_url(item: Any, spec: ToolSpec, ui_base_url: str) -> Any:
     """Attach a link to the record in the CATS web UI, when one can be built.
 
