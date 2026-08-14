@@ -104,6 +104,18 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
+    # --- Observability and pacing -------------------------------------------
+    # Per-call timing, logged. On by default: "the server feels slow" was
+    # unanswerable for want of a number, and one line per call is proportionate
+    # for a server working inside a 500/hour budget.
+    log_timing: bool = True
+
+    # Cache component listings and *reference* data only - workflows, custom
+    # field definitions, job statuses. Never records. See cats_mcp.observability
+    # for why a faster stale answer about list membership is worse than no
+    # caching at all.
+    cache_reference_data: bool = True
+
     # --- HTTP client --------------------------------------------------------
     request_timeout: float = 30.0
     max_retries: int = 4
