@@ -24,7 +24,20 @@ from cats_mcp.registry.models import Safety  # noqa: E402
 OUTPUT = pathlib.Path("docs/TOOLS.md")
 
 #: Composite tools live outside the endpoint registry, plus the status tool.
-COMPOSITE_COUNT = 5
+#:
+#: Derived from the registration function's own return value rather than typed
+#: here. The audit that started this rewrite found five hand-maintained tool
+#: counts across the repo, four of them wrong; a second hardcoded count in the
+#: *generator* would be the same bug in the one place that is supposed to end it.
+def _count_composites() -> int:
+    from fastmcp import FastMCP
+
+    from cats_mcp.composites import reads as composite_reads
+
+    return composite_reads.register(FastMCP("count"), lambda: None, enforce_auth=False)
+
+
+COMPOSITE_COUNT = _count_composites()
 STATUS_TOOL_COUNT = 1
 
 #: The other two MCP primitives. Asserted against the running server in
