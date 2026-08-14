@@ -1,0 +1,122 @@
+name: Security Scan Pipeline
+
+# This workflow uses security scanning scripts installed by /foundation:hooks-setup
+# Scripts source: dev-lifecycle-marketplace/plugins/quality/skills/security-patterns/scripts/
+# - scan-secrets.sh: Detects API keys (Airtable, Anthropic, OpenAI, AWS, GitHub, etc.)
+# - scan-dependencies.sh: npm/pip vulnerability scanning
+# - scan-owasp.sh: OWASP security pattern detection
+# - generate-security-report.sh: Creates comprehensive security reports
+
+on:
+  push:
+    branches: [main, develop, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly Monday 2 AM
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up scan environment
+        run: |
+          mkdir -p security-scans
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Scan for secrets
+        id: secrets
+        run: |
+          bash scripts/scan-secrets.sh . > security-scans/secrets.json
+          SECRETS_COUNT=$(jq '.total_findings' security-scans/secrets.json)
+          echo "secrets_found=$SECRETS_COUNT" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Scan dependencies
+        id: deps
+        run: |
+          bash scripts/scan-dependencies.sh . > security-scans/dependencies.json
+          CRITICAL=$(jq '.severity_breakdown.critical' security-scans/dependencies.json)
+          echo "critical_vulns=$CRITICAL" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Scan OWASP patterns
+        id: owasp
+        run: |
+          bash scripts/scan-owasp.sh . > security-scans/owasp.json
+          OWASP_COUNT=$(jq '.total_findings' security-scans/owasp.json)
+          echo "owasp_findings=$OWASP_COUNT" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Generate security report
+        run: |
+          bash scripts/generate-security-report.sh security-scans html security-report
+          bash scripts/generate-security-report.sh security-scans json security-report
+
+      - name: Upload scan results
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-scan-results
+          path: |
+            security-scans/*.json
+            security-report.html
+            security-report.json
+
+      - name: Evaluate results
+        run: |
+          SECRETS=${{ steps.secrets.outputs.secrets_found }}
+          CRITICAL=${{ steps.deps.outputs.critical_vulns }}
+
+          echo "Security Scan Results:"
+          echo "  Secrets found: $SECRETS"
+          echo "  Critical vulnerabilities: $CRITICAL"
+
+          # Fail build if critical issues found
+          if [ "$SECRETS" -gt 0 ]; then
+            echo "ERROR: Secrets detected in codebase!"
+            exit 1
+          fi
+
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "ERROR: Critical vulnerabilities detected!"
+            exit 1
+          fi
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('security-report.json', 'utf8'));
+
+            const body = `## Security Scan Results
+
+            | Metric | Count |
+            |--------|-------|
+            | Total Findings | ${report.executive_summary.total_findings} |
+            | Critical | ${report.executive_summary.severity_breakdown.critical} |
+            | High | ${report.executive_summary.severity_breakdown.high} |
+            | Medium | ${report.executive_summary.severity_breakdown.medium} |
+            | Low | ${report.executive_summary.severity_breakdown.low} |
+
+            **Risk Score:** ${report.executive_summary.risk_score}/100
+            **Risk Level:** ${report.executive_summary.risk_level}
+
+            [View full report](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

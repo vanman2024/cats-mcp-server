@@ -51,3 +51,7 @@ htmlcov/
 # Archive/backup files
 archive/
 __pycache__/
+
+# Personal Claude Code settings (permission grants, local MCP toggles).
+# The shared config is .claude/settings.json; this file is per-developer.
+.claude/settings.local.json
