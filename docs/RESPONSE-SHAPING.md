@@ -102,6 +102,32 @@ full result count.
 
 `note` appears only on compact results and states how to widen them.
 
+### Two endpoints report `total: null`
+
+`list_events` and `list_triggers` return neither `total` nor `_links.next`, so
+`has_more` is false and the real size is unknown. Treat a full-looking page from
+those two as possibly truncated.
+
+`list_webhooks` does the opposite: it advertises `has_more: true` on a complete
+result set, and page 2 returns the same records again. Deduplicate by `id` if you
+follow its pagination.
+
+## Pagination
+
+Every collection tool accepts `page` (1-based) and `per_page`. Both are injected
+at registration time for the same reason as the shaping parameters, and for a
+worse original defect: **34 of 66 collection tools had no `page` parameter**, so
+page 2 was unreachable even where CATS advertised it in its own `_links.next`.
+
+`search_candidates` matched 3,336 records on this account and could return 25 of
+them. `list_candidate_custom_field_definitions` returned 25 of 41, hiding the
+field ids an account screens on.
+
+`build_signature` and `split_arguments` now read one shared parameter list
+(`all_params_for`). Using `spec.params` in the request builder while the
+signature included injected parameters is how a tool could advertise `page` and
+silently drop it on the way out.
+
 ## Availability
 
 `summary_level` and `fields` are injected at registration time into every tool

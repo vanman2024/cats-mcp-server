@@ -81,13 +81,65 @@ def shaping_params_for(spec: ToolSpec) -> tuple[Param, ...]:
     return tuple(p for p in _SHAPING_PARAMS if p.name not in declared)
 
 
+#: Pagination, for the same reason: it belongs to the response strategy, and
+#: hand-declaring it per spec is how 34 of 66 list tools ended up unable to
+#: reach page 2.
+#:
+#: The cost was not theoretical. `search_candidates` for "mechanic" matches 3,336
+#: records and CATS advertises `page=2` in its own `_links.next` - the tool had
+#: no way to send it, so 25 of 3,336 were reachable. Likewise
+#: `list_candidate_custom_field_definitions`: 41 definitions, 25 reachable, and
+#: the field ids an account screens on are in there.
+_PAGINATION_PARAMS: tuple[Param, ...] = (
+    Param(
+        name="per_page",
+        annotation=int,
+        description=(
+            "Number of results per page (default: 25). Raise it to retrieve a "
+            "large set in few requests rather than many."
+        ),
+        location=ParamLocation.QUERY,
+        default=25,
+    ),
+    Param(
+        name="page",
+        annotation=int,
+        description=(
+            "Page number, 1-based (default: 1). Pass the `next_page` value from "
+            "the previous response, and stop when `has_more` is false."
+        ),
+        location=ParamLocation.QUERY,
+        default=1,
+    ),
+)
+
+
+def pagination_params_for(spec: ToolSpec) -> tuple[Param, ...]:
+    """Pagination a collection spec should expose but does not declare itself."""
+    if spec.response is not ResponseStrategy.SUMMARY:
+        return ()
+    declared = {p.name for p in spec.params}
+    return tuple(p for p in _PAGINATION_PARAMS if p.name not in declared)
+
+
+def all_params_for(spec: ToolSpec) -> tuple[Param, ...]:
+    """Declared parameters plus everything injected from the response strategy.
+
+    Both the generated signature and the request builder read this. Using
+    `spec.params` in one and this in the other is how an injected parameter
+    would appear in a tool's schema and then be silently dropped on the way
+    out.
+    """
+    return spec.params + pagination_params_for(spec) + shaping_params_for(spec)
+
+
 def build_signature(spec: ToolSpec) -> tuple[list[inspect.Parameter], dict[str, Any]]:
     """Build the parameter list and annotations for a spec's tool function.
 
     Required parameters must precede optional ones or `inspect.Signature`
     rejects the result.
     """
-    all_params = spec.params + shaping_params_for(spec)
+    all_params = all_params_for(spec)
     ordered = sorted(all_params, key=lambda p: (not p.required,))
     annotations: dict[str, Any] = {}
     sig_params: list[inspect.Parameter] = []
@@ -113,7 +165,7 @@ def build_signature(spec: ToolSpec) -> tuple[list[inspect.Parameter], dict[str, 
 
 def split_arguments(spec: ToolSpec, kwargs: dict[str, Any]) -> tuple[str, dict, dict | None]:
     """Split call arguments into (endpoint, query params, JSON body)."""
-    by_name = {p.name: p for p in spec.params}
+    by_name = {p.name: p for p in all_params_for(spec)}
 
     path_values: dict[str, Any] = {}
     query: dict[str, Any] = {}
