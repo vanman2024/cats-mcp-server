@@ -197,6 +197,67 @@ def _next_page(raw: dict[str, Any]) -> int | None:
         return None
 
 
+#: Endpoint tail -> the SUMMARY_FIELDS key describing those rows.
+#:
+#: A spec's `resource` names the toolset it belongs to, not the shape of the rows
+#: it returns. `list_candidate_emails` is resource="candidate" while every row is
+#: an email, so projecting through the candidate fields returned rows carrying
+#: `id` and `date_modified` and *no email address*. Verified against the live
+#: account: a candidate with two emails came back as two ids and nothing else.
+#:
+#: Only tails with a genuinely different shape need listing. Anything absent
+#: falls through to "no projection", which returns the whole row - more verbose
+#: than ideal and strictly better than silently dropping the field the caller
+#: asked for.
+_ROW_RESOURCE_BY_TAIL: dict[str, str] = {
+    "attachments": "attachment",
+    "work_history": "work_history",
+    "tags": "tag",
+    "activities": "activity",
+    "pipelines": "pipeline",
+    "tasks": "task",
+    "users": "user",
+    "items": "list_item",
+    "lists": "record_list",
+}
+
+#: Tails whose rows have no compact projection. Listed so the fallback is a
+#: decision rather than an accident: these come back whole.
+_UNPROJECTED_TAILS = frozenset(
+    {
+        "emails",
+        "phones",
+        "custom_fields",
+        "applications",
+        "statuses",
+        "workflows",
+        "departments",
+        "fields",
+        "events",
+        "backups",
+        "portals",
+        "triggers",
+        "webhooks",
+    }
+)
+
+
+def row_resource(spec: ToolSpec) -> str | None:
+    """The SUMMARY_FIELDS key describing this spec's *rows*.
+
+    None means no compact projection applies and the whole row is returned.
+    """
+    segments = [s for s in spec.endpoint.strip("/").split("/") if not s.startswith("{")]
+    tail = segments[-1] if segments else ""
+
+    if tail in _UNPROJECTED_TAILS:
+        return None
+    if tail in _ROW_RESOURCE_BY_TAIL:
+        return _ROW_RESOURCE_BY_TAIL[tail]
+    # A collection root or a search verb returns the resource's own records.
+    return spec.resource
+
+
 def _fields_for(spec: ToolSpec, summary_level: str, explicit: str | None) -> list[str] | None:
     if explicit:
         requested = [f.strip() for f in explicit.split(",") if f.strip()]
@@ -207,7 +268,8 @@ def _fields_for(spec: ToolSpec, summary_level: str, explicit: str | None) -> lis
             return requested
     if summary_level in ("full", "standard"):
         return None
-    return SUMMARY_FIELDS.get(spec.resource)
+    resource = row_resource(spec)
+    return SUMMARY_FIELDS.get(resource) if resource else None
 
 
 def shape_list(

@@ -36,6 +36,32 @@ MAX_BATCH = 50
 #: tripping the rate limiter on the caller's behalf.
 CONCURRENCY = 5
 
+#: Ids per call when only list membership is asked for.
+#:
+#: Screening is the one thing whose cost does not scale with the number of
+#: people: CATS has no candidate -> lists lookup, so membership is answered by
+#: fetching each list once and intersecting in memory. 500 candidates against a
+#: 299-member list is three requests and a set operation.
+#:
+#: Higher than MAX_BATCH on purpose - capping a screen at 50 would force the
+#: caller into the per-candidate loop this exists to prevent.
+MAX_SCREEN = 500
+
+#: What `include` accepts, and what each costs.
+#:
+#: The asymmetry is the whole design. Screening is nearly free and deep review
+#: is not, so a caller who screens first spends real requests only on the people
+#: who survive it.
+INCLUDE_OPTIONS: dict[str, str] = {
+    "identity": "name, title, city, state and current employer - one request per candidate",
+    "custom_fields": "account-specific fields such as certifications - free alongside identity",
+    "lists": "saved-list membership for the list_ids given - one request per list, not per person",
+    "pipelines": "job applications and their current stage - one request per candidate",
+}
+
+#: The `include` values that cost a request per candidate.
+PER_CANDIDATE_INCLUDES = frozenset({"identity", "custom_fields", "pipelines"})
+
 
 async def _gather_by_id(
     ids: list[int | str],
@@ -76,6 +102,127 @@ def _dedupe(ids: list[int | str]) -> list[int | str]:
             seen.add(key)
             out.append(i)
     return out
+
+
+#: Page size when sweeping a saved list. CATS honours this, so a 299-member list
+#: is three requests rather than twelve at the default of 25.
+LIST_PAGE_SIZE = 100
+
+#: Pages per list. A stop, so a pathological list cannot consume a whole budget.
+MAX_LIST_PAGES = 20
+
+
+async def _list_memberships(
+    client: Any, list_ids: list[int | str]
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str], int]:
+    """Map candidate id -> the given lists they belong to.
+
+    CATS has no candidate -> lists lookup; it answers only "who is on this
+    list". So membership is resolved by sweeping each list once and inverting
+    it, which is why screening costs one pass per *list* rather than one request
+    per person. Checking 500 candidates against a 299-member list is three
+    requests and a dictionary lookup.
+
+    Each row's `id` is the membership row and the person is in `candidate_id` -
+    reading the wrong one silently produces a different person, which on a Do
+    Not Contact list means clearing someone who should not be contacted.
+    """
+    membership: dict[str, list[dict[str, Any]]] = {}
+    errors: dict[str, str] = {}
+    requests_used = 0
+
+    for list_id in _dedupe(list_ids):
+        try:
+            detail = await client.request("GET", f"/candidates/lists/{list_id}")
+            requests_used += 1
+            name = detail.get("name") if isinstance(detail, dict) else None
+        except CATSAPIError as exc:
+            errors[f"list:{list_id}"] = str(exc)
+            continue
+
+        page = 1
+        while page <= MAX_LIST_PAGES:
+            try:
+                payload = await client.request(
+                    "GET",
+                    f"/candidates/lists/{list_id}/items",
+                    params={"per_page": LIST_PAGE_SIZE, "page": page},
+                )
+            except CATSAPIError as exc:
+                errors[f"list:{list_id}:page:{page}"] = str(exc)
+                break
+            requests_used += 1
+
+            rows = _embedded_rows(payload)
+            for row in rows:
+                candidate_id = row.get("candidate_id")
+                if candidate_id is None:
+                    continue
+                membership.setdefault(str(candidate_id), []).append(
+                    {"id": list_id, "name": name}
+                )
+
+            if not _has_next_page(payload) or not rows:
+                break
+            page += 1
+
+    return membership, errors, requests_used
+
+
+def _embedded_rows(payload: Any) -> list[dict[str, Any]]:
+    """Rows out of a HAL collection, whatever the embedded key is called."""
+    if not isinstance(payload, dict):
+        return []
+    embedded = payload.get("_embedded")
+    if not isinstance(embedded, dict):
+        return []
+    for value in embedded.values():
+        if isinstance(value, list):
+            return [row for row in value if isinstance(row, dict)]
+    return []
+
+
+def _has_next_page(payload: Any) -> bool:
+    links = payload.get("_links") if isinstance(payload, dict) else None
+    return isinstance(links, dict) and "next" in links
+
+
+async def _status_titles(client: Any) -> tuple[dict[str, str], int]:
+    """Map pipeline status id -> its human title.
+
+    A status id is account-specific and means nothing to a reader: "6377104"
+    does not say Placed. Resolving it is normalization, which is the adapter's
+    job, and it costs one request that the reference-data cache serves for ten
+    minutes afterwards.
+
+    A failure here is not worth failing the call over - the ids are still
+    returned, just unlabelled.
+    """
+    try:
+        payload = await client.request("GET", "/pipelines/workflows")
+    except CATSAPIError as exc:
+        logger.warning("could not resolve pipeline status titles: %s", exc)
+        return {}, 1
+
+    titles: dict[str, str] = {}
+    for workflow in _embedded_rows(payload):
+        for status in workflow.get("statuses") or []:
+            if isinstance(status, dict) and status.get("id") is not None:
+                titles[str(status["id"])] = status.get("title") or status.get("name") or ""
+    return titles, 1
+
+
+def _pipeline_rows(payload: Any, titles: dict[str, str]) -> list[dict[str, Any]]:
+    rows = []
+    for row in _embedded_rows(payload):
+        entry = _project(row, ["id", "job_id", "status_id", "rating", "date_modified"])
+        status_id = entry.get("status_id")
+        if status_id is not None:
+            title = titles.get(str(status_id))
+            if title:
+                entry["status"] = title
+        rows.append(entry)
+    return rows
 
 
 def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) -> int:
@@ -369,4 +516,137 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             "rate_limit": client.rate_limit.snapshot(),
         }
 
-    return 5
+    @mcp.tool(
+        name="get_candidate_context",
+        description=(
+            "Retrieve a compact, factual view of many candidates in one call: identity, "
+            "saved-list membership, and current pipeline stages.\n\n"
+            "Use this to screen a set of candidates before spending requests on any of "
+            "them. Screening on list membership alone costs one request per list rather "
+            "than one per person, so several hundred candidates can be checked against a "
+            "Do Not Contact list in about three requests.\n\n"
+            "Returns facts, not verdicts. It reports which lists someone is on and what "
+            "stage their applications are at; deciding what that means is the caller's.\n\n"
+            "Recommended order: screen the whole set with include=['lists'], discard "
+            "whoever your rules exclude, then call again with include=['identity',"
+            "'pipelines'] for the survivors only."
+        ),
+        tags={"ats", "candidate", "read", "batch", "search", "screening"},
+        annotations=read_annotations,
+        **tool_kwargs,
+    )
+    async def get_candidate_context(
+        candidate_ids: Annotated[
+            list[int | str],
+            Field(
+                description=(
+                    f"Candidate ids. Up to {MAX_SCREEN} when only 'lists' is requested, "
+                    f"{MAX_BATCH} when any per-candidate data is requested."
+                )
+            ),
+        ],
+        include: Annotated[
+            list[str] | None,
+            Field(
+                description=(
+                    "What to retrieve. "
+                    + "; ".join(f"'{k}': {v}" for k, v in INCLUDE_OPTIONS.items())
+                    + ". Defaults to ['lists'], the cheap screen."
+                )
+            ),
+        ] = None,
+        list_ids: Annotated[
+            list[int | str] | None,
+            Field(
+                description=(
+                    "Saved lists to check membership against, required when 'lists' is "
+                    "included. Find ids with list_candidate_lists. These are the lists "
+                    "your policy cares about - a Do Not Contact list, for example."
+                )
+            ),
+        ] = None,
+    ) -> dict[str, Any]:
+        set_run_id()
+        client = client_getter()
+        wanted = [i.strip().lower() for i in (include or ["lists"]) if i.strip()]
+
+        unknown = [i for i in wanted if i not in INCLUDE_OPTIONS]
+        if unknown:
+            raise ValueError(
+                f"Unknown include values {unknown}. Valid options: "
+                f"{sorted(INCLUDE_OPTIONS)}."
+            )
+
+        per_candidate = bool(set(wanted) & PER_CANDIDATE_INCLUDES)
+        ceiling = MAX_BATCH if per_candidate else MAX_SCREEN
+        ids = _dedupe(candidate_ids)[:ceiling]
+
+        if "lists" in wanted and not list_ids:
+            raise ValueError(
+                "include=['lists'] needs list_ids. Call list_candidate_lists to find "
+                "the ids of the lists your policy cares about, then pass them here."
+            )
+
+        if per_candidate and len(_dedupe(candidate_ids)) > MAX_BATCH:
+            raise ValueError(
+                f"{len(_dedupe(candidate_ids))} candidates is too many for "
+                f"{sorted(set(wanted) & PER_CANDIDATE_INCLUDES)}, which costs one "
+                f"request each. Screen first with include=['lists'] - that costs one "
+                f"request per list regardless of how many people you check - then call "
+                f"again with at most {MAX_BATCH} survivors."
+            )
+
+        context: dict[str, dict[str, Any]] = {str(i): {"candidate_id": i} for i in ids}
+        errors: dict[str, str] = {}
+        requests_used = 0
+
+        # --- membership: one pass per list, not per candidate ---------------
+        if "lists" in wanted:
+            memberships, list_errors, used = await _list_memberships(client, list_ids or [])
+            errors.update(list_errors)
+            requests_used += used
+            for key, row in context.items():
+                row["lists"] = memberships.get(key, [])
+
+        # --- per-candidate record -------------------------------------------
+        if "identity" in wanted or "custom_fields" in wanted:
+            fields = ["id", "first_name", "last_name", "title", "city", "state"]
+            fields += ["current_employer", "date_modified"]
+            if "custom_fields" in wanted:
+                fields.append("custom_fields")
+
+            async def fetch_record(cid):
+                return await client.request("GET", f"/candidates/{cid}")
+
+            records, record_errors = await _gather_by_id(ids, fetch_record)
+            errors.update(record_errors)
+            requests_used += len(ids)
+            for key, record in records.items():
+                context[key].update(_project(record, fields))
+
+        # --- pipelines, with status ids resolved to names --------------------
+        if "pipelines" in wanted:
+            statuses, status_calls = await _status_titles(client)
+            requests_used += status_calls
+
+            async def fetch_pipelines(cid):
+                return await client.request("GET", f"/candidates/{cid}/pipelines")
+
+            found, pipeline_errors = await _gather_by_id(ids, fetch_pipelines)
+            errors.update(pipeline_errors)
+            requests_used += len(ids)
+            for key, payload in found.items():
+                context[key]["pipelines"] = _pipeline_rows(payload, statuses)
+
+        return {
+            "candidates": list(context.values()),
+            "count": len(context),
+            "requested": len(candidate_ids),
+            "truncated": len(_dedupe(candidate_ids)) > ceiling,
+            "included": wanted,
+            "errors": errors,
+            "requests_used": requests_used,
+            "rate_limit": client.rate_limit.snapshot(),
+        }
+
+    return 6

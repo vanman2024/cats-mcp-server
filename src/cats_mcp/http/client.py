@@ -14,6 +14,7 @@ call, so no connection was ever reused.
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,6 +35,9 @@ logger = get_logger(__name__)
 
 #: Responses with no body. CATS uses 204 for successful deletes.
 _EMPTY_STATUSES = frozenset({204, 205})
+
+#: Trailing numeric id in a Location header, e.g. "/v3/candidates/413428437".
+_TRAILING_ID = re.compile(r"/(\d+)/?$")
 
 
 @dataclass(frozen=True)
@@ -263,7 +267,22 @@ class CATSClient:
     def _parse(response: httpx2.Response, *, raw_bytes: bool = False) -> Any:
         """Parse a successful response, tolerating empty and non-JSON bodies."""
         if response.status_code in _EMPTY_STATUSES or not response.content:
-            return {"status": "success", "status_code": response.status_code}
+            result: dict[str, Any] = {
+                "status": "success",
+                "status_code": response.status_code,
+            }
+            # CATS answers a create with an empty 201, so the only trace of the
+            # new record's id is the Location header. Discarding it left callers
+            # unable to act on what they had just created: a create followed by
+            # a filter-by-name, which costs an extra request and races anyone
+            # else creating a similar record.
+            location = response.headers.get("Location")
+            if location:
+                result["location"] = location
+                match = _TRAILING_ID.search(location)
+                if match:
+                    result["created_id"] = int(match.group(1))
+            return result
 
         if raw_bytes:
             # A file endpoint answering with JSON is telling us something - an

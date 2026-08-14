@@ -28,6 +28,7 @@ from cats_mcp.discovery.profiles import transforms_for
 from cats_mcp.http.client import CATSClient
 from cats_mcp.http.correlation import configure_logging, get_logger
 from cats_mcp.http.site import UIDomainResolver
+from cats_mcp.observability import build_middleware
 from cats_mcp.registry.build import register_all
 from cats_mcp.registry.catalog import REGISTRY
 from cats_mcp.resources import context as context_resources
@@ -116,6 +117,11 @@ def create_server(
         transforms=transforms_for(settings),
         lifespan=lifespan,
     )
+
+    # Timing, reference-data caching and optional global pacing. Registered
+    # before tools so every call passes through them.
+    for middleware in build_middleware(settings):
+        mcp.add_middleware(middleware)
 
     # The CATS web-UI domain is a property of the account, not of this process:
     # `GET /site` returns the subdomain for whichever credential is in play. So

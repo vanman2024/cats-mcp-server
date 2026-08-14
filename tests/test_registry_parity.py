@@ -142,6 +142,23 @@ INJECTED_SHAPING_PARAMS = {"summary_level", "fields"}
 INJECTED_PAGINATION_PARAMS = {"page", "per_page"}
 
 
+#: Parameters removed because CATS silently discards them.
+#:
+#: Verified against a live account: `create_candidate` with an email returned
+#: 201 and stored `emails: {primary: null, secondary: null}`. `update_candidate`
+#: returned 204, advanced date_modified, and left both null. CATS keeps emails
+#: and phones as sub-resources, so a flat field in the candidate body is
+#: accepted and dropped.
+#:
+#: Advertising a parameter that does nothing is worse than not having it: the
+#: caller believes the contact details were saved. create_candidate_email and
+#: create_candidate_phone are the paths that work.
+INTENTIONALLY_REMOVED_PARAMS: dict[str, set[str]] = {
+    "create_candidate": {"email", "phone"},
+    "update_candidate": {"email", "phone"},
+}
+
+
 def _injected(name: str) -> set[str]:
     """Parameter names this spec gained from its response strategy.
 
@@ -155,6 +172,16 @@ def _injected(name: str) -> set[str]:
     if spec is None:
         return set()
     return {p.name for p in pagination_params_for(spec) + shaping_params_for(spec)}
+
+
+def _without_removed(name: str, schema: dict) -> dict:
+    """The baseline schema minus parameters deliberately taken away."""
+    removed = INTENTIONALLY_REMOVED_PARAMS.get(name)
+    if not removed:
+        return schema
+    properties = {k: v for k, v in (schema.get("properties") or {}).items() if k not in removed}
+    required = [r for r in (schema.get("required") or []) if r not in removed]
+    return {**schema, "properties": properties, "required": required}
 
 
 def _shape(schema: dict, injected: set[str] | None = None) -> dict:
@@ -183,7 +210,7 @@ async def test_schemas_keep_their_contract(registered_tools, expected):
     differences = [
         name
         for name in sorted(checked)
-        if _shape(expected[name].get("input_schema") or {}, _injected(name))
+        if _shape(_without_removed(name, expected[name].get("input_schema") or {}), _injected(name))
         != _shape(registered_tools[name].parameters or {}, _injected(name))
     ]
     assert not differences, f"tool schemas changed: {differences}"
@@ -193,7 +220,7 @@ async def test_untouched_tools_are_still_byte_identical(registered_tools, expect
     """Tools with no deliberate change must match the baseline exactly."""
     unchanged = []
     for name in sorted(set(expected) & set(registered_tools)):
-        if name in INTENTIONALLY_REWORDED:
+        if name in INTENTIONALLY_REWORDED or name in INTENTIONALLY_REMOVED_PARAMS:
             continue
         if _injected(name):
             continue  # gained shaping or pagination params, checked separately
@@ -410,3 +437,13 @@ def test_shaping_params_are_still_never_sent_upstream():
     assert "summary_level" not in query and "fields" not in query
     assert not body
     assert query["page"] == 3
+
+
+def test_the_discarded_contact_params_are_really_gone():
+    """Guards the exception above: it must describe a change that happened."""
+    for name, removed in INTENTIONALLY_REMOVED_PARAMS.items():
+        spec = REGISTRY.by_name(name)
+        assert spec is not None, name
+        declared = {p.name for p in spec.params}
+        still_there = declared & removed
+        assert not still_there, f"{name} still declares {still_there}, which CATS discards"

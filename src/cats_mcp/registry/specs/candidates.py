@@ -11,10 +11,12 @@ from typing import Any  # noqa: F401  (used in parameter annotations)
 from cats_mcp.registry.models import (
     Param,
     ParamLocation,
+    Presence,
     ResponseStrategy,
     Safety,
     ToolSpec,
     Transform,  # noqa: F401  (used by some specs)
+    Verification,
 )
 
 SPECS: list[ToolSpec] = [
@@ -78,7 +80,19 @@ SPECS: list[ToolSpec] = [
         operation="create",
         method="POST",
         endpoint="/candidates",
-        description="Create a new candidate in the system. Use this to add a new candidate record.\n\nWraps: POST /candidates",
+        description=(
+            "Create a new candidate record.\n\n"
+            "Email and phone are NOT set here. CATS stores them as sub-resources, "
+            "and a flat `email` or `phone` in this body is accepted and silently "
+            "discarded - verified against a live account, where the created "
+            "record came back with emails and phones null after a 201. Add them "
+            "afterwards with create_candidate_email and create_candidate_phone.\n\n"
+            "CATS returns an empty 201, so the new id arrives as `created_id` "
+            "when the Location header is present. If it is absent, find the "
+            "record with filter_candidates - allowing a moment, because a new "
+            "candidate is not immediately matchable.\n\n"
+            "Wraps: POST /candidates"
+        ),
         safety=Safety.WRITE,
         response=ResponseStrategy.RAW,
         toolset="candidates",
@@ -94,19 +108,6 @@ SPECS: list[ToolSpec] = [
                 annotation=str,
                 description="Candidate's last name",
                 location=ParamLocation.BODY,
-            ),
-            Param(
-                name="email",
-                annotation=str,
-                description="Email address",
-                location=ParamLocation.BODY,
-            ),
-            Param(
-                name="phone",
-                annotation=str | None,
-                description="Phone number (optional)",
-                location=ParamLocation.BODY,
-                default=None,
             ),
             Param(
                 name="resume_url",
@@ -130,7 +131,17 @@ SPECS: list[ToolSpec] = [
         operation="update",
         method="PUT",
         endpoint="/candidates/{candidate_id}",
-        description="Update an existing candidate's information. Use this to change fields on an existing candidate. Only the fields you supply are modified.\n\nWraps: PUT /candidates/{candidate_id}",
+        description=(
+            "Update an existing candidate's name. Only the fields you supply are "
+            "modified.\n\n"
+            "Email and phone are NOT changed here. CATS stores them as "
+            "sub-resources, and a flat `email` or `phone` in this body is "
+            "accepted and silently discarded - verified against a live account, "
+            "where a 204 advanced date_modified and left both fields null. Use "
+            "update_candidate_email and update_candidate_phone, or "
+            "create_candidate_email / create_candidate_phone to add one.\n\n"
+            "Wraps: PUT /candidates/{candidate_id}"
+        ),
         safety=Safety.WRITE,
         response=ResponseStrategy.RAW,
         toolset="candidates",
@@ -152,20 +163,6 @@ SPECS: list[ToolSpec] = [
                 name="last_name",
                 annotation=str | None,
                 description="Updated last name (optional)",
-                location=ParamLocation.BODY,
-                default=None,
-            ),
-            Param(
-                name="email",
-                annotation=str | None,
-                description="Updated email address (optional)",
-                location=ParamLocation.BODY,
-                default=None,
-            ),
-            Param(
-                name="phone",
-                annotation=str | None,
-                description="Updated phone number (optional)",
                 location=ParamLocation.BODY,
                 default=None,
             ),
@@ -1259,10 +1256,28 @@ SPECS: list[ToolSpec] = [
         operation="create",
         method="POST",
         endpoint="/candidates/lists/{list_id}/items",
-        description="Add candidates to a list. Use this to add a new candidate record.\n\nWraps: POST /candidates/lists/{list_id}/items",
+        description=(
+            "Add candidates to a saved list, such as a Do Not Contact list.\n\n"
+            "The list is read back afterwards and the result reports `verified`. "
+            "A 2xx from CATS means the request was accepted, not that the record "
+            "now says what you intended - and on a Do Not Contact list, believing "
+            "someone was added when they were not means contacting a person who "
+            "asked you to stop.\n\n"
+            "If `verified` is false, read `verification` and `missing` before "
+            "assuming either outcome.\n\n"
+            "Wraps: POST /candidates/lists/{list_id}/items"
+        ),
         safety=Safety.BULK,
         response=ResponseStrategy.RAW,
         toolset="candidates",
+        verification=Verification(
+            endpoint="/candidates/lists/{list_id}/items",
+            collection_key="items",
+            # Not `id`: a membership row's id is the row, not the person.
+            identity_field="candidate_id",
+            expect_from="candidate_ids",
+            presence=Presence.PRESENT,
+        ),
         params=(
             Param(
                 name="list_id",
@@ -1286,10 +1301,29 @@ SPECS: list[ToolSpec] = [
         operation="delete",
         method="DELETE",
         endpoint="/candidates/lists/{list_id}/items/{item_id}",
-        description="Remove a candidate from a list. Permanently removes this record. This cannot be undone.\n\nWraps: DELETE /candidates/lists/{list_id}/items/{item_id}",
+        description=(
+            "Remove one membership row from a saved list. This cannot be undone.\n\n"
+            "`item_id` is the membership row id, NOT the candidate id. Get it from "
+            "list_candidate_list_items - passing a candidate id here either fails "
+            "or removes a different person's membership.\n\n"
+            "The list is read back afterwards and the result reports `verified`. "
+            "Removing someone from a Do Not Contact list is the direction that "
+            "does harm if it silently fails to apply, so confirm rather than "
+            "assume.\n\n"
+            "Wraps: DELETE /candidates/lists/{list_id}/items/{item_id}"
+        ),
         safety=Safety.DESTRUCTIVE,
         response=ResponseStrategy.RAW,
         toolset="candidates",
+        verification=Verification(
+            endpoint="/candidates/lists/{list_id}/items",
+            collection_key="items",
+            # Here the row id *is* the right field: the delete addresses a
+            # membership row, so the row is what must be gone afterwards.
+            identity_field="id",
+            expect_from="item_id",
+            presence=Presence.ABSENT,
+        ),
         params=(
             Param(
                 name="list_id",

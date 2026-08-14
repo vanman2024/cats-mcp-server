@@ -48,9 +48,9 @@ def build_server(handler=None, **overrides):
 # --- catalog ---------------------------------------------------------------
 
 
-#: Tools that exist outside the endpoint registry: the 5 composite read
+#: Tools that exist outside the endpoint registry: the composite read
 #: primitives plus the synthetic connection-status tool.
-NON_REGISTRY_TOOLS = 6
+NON_REGISTRY_TOOLS = 7  # 6 composite reads + get_connection_status
 
 
 async def test_raw_profile_exposes_the_whole_catalog():
@@ -160,6 +160,7 @@ async def test_the_batch_tools_are_visible_without_searching():
         names = {t.name for t in await client.list_tools()}
 
     for batch_tool in (
+        "get_candidate_context",
         "get_candidate_summaries",
         "get_candidate_engagement",
         "get_job_candidate_pool",

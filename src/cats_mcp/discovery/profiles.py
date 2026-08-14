@@ -38,12 +38,12 @@ logger = get_logger(__name__)
 #: dominate wall-clock, so hiding an everyday tool roughly doubles the time of
 #: every task that needs it.
 #:
-#: The five composites are the sharp case. Each exists to collapse N calls into
-#: one - a whole job pipeline, a batch of profiles, who has gone cold - and
-#: leaving them behind search meant the tools built to make this fast were the
-#: ones a model was least likely to find. A client that never discovers
-#: get_candidate_summaries falls back to one get_candidate per person, which is
-#: both slow and expensive against a 500/hour budget.
+#: The composites are the sharp case. Each exists to collapse N calls into one
+#: - screening a whole set, a batch of profiles, a job's pipeline, who has gone
+#: cold - and leaving them behind search meant the tools built to make this fast
+#: were the ones a model was least likely to find. A client that never discovers
+#: get_candidate_context falls back to one request per person, which is both
+#: slow and expensive against a 500/hour budget.
 #:
 #: The whole catalog is ~48k tokens, which is why `search` exists. This set is
 #: ~7k: affordable to keep resident, and it covers the everyday paths.
@@ -56,6 +56,9 @@ PINNED_TOOLS: tuple[str, ...] = (
     "get_connection_status",
     "get_site",
     # Batch primitives: one call instead of N. The reason this list is not tiny.
+    # get_candidate_context is first because it is the one that screens a whole
+    # set before any per-person request is spent.
+    "get_candidate_context",
     "get_candidate_summaries",
     "get_candidate_engagement",
     "get_job_candidate_pool",
