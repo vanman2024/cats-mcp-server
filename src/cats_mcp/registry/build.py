@@ -19,6 +19,7 @@ from cats_mcp.http.errors import CATSAPIError, to_tool_error
 from cats_mcp.registry.models import (
     Param,
     ParamLocation,
+    Presence,
     ResponseStrategy,
     Safety,
     ToolSpec,
@@ -201,6 +202,123 @@ def split_arguments(spec: ToolSpec, kwargs: dict[str, Any]) -> tuple[str, dict, 
     return endpoint, query, (body or None)
 
 
+#: Pages to sweep when confirming a mutation against a collection. A stop, so
+#: verifying an addition to a very large list cannot itself become the expensive
+#: operation the rest of this module works to avoid.
+MAX_VERIFY_PAGES = 20
+VERIFY_PAGE_SIZE = 100
+
+
+def _expected_values(kwargs: dict[str, Any], field: str) -> list[str]:
+    value = kwargs.get(field)
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(v) for v in value]
+    return [str(value)]
+
+
+def _rows_from(payload: Any, collection_key: str | None) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [r for r in payload if isinstance(r, dict)]
+    if not isinstance(payload, dict):
+        return []
+    embedded = payload.get("_embedded")
+    if isinstance(embedded, dict):
+        if collection_key and isinstance(embedded.get(collection_key), list):
+            return [r for r in embedded[collection_key] if isinstance(r, dict)]
+        for value in embedded.values():
+            if isinstance(value, list):
+                return [r for r in value if isinstance(r, dict)]
+    return [payload]
+
+
+async def _verified(
+    spec: ToolSpec,
+    raw: Any,
+    kwargs: dict[str, Any],
+    client: Any,
+    run_id: str,
+) -> dict[str, Any]:
+    """Run the mutation's verification read and report what it found.
+
+    A failed check is reported, never raised. The mutation may well have
+    succeeded, and turning a successful write into an exception invites a caller
+    to retry it - which for an addition is harmless and for anything else is not.
+    """
+    check = spec.verification
+    assert check is not None
+    expected = set(_expected_values(kwargs, check.expect_from))
+
+    result: dict[str, Any] = {"result": raw, "verified": False}
+    if not expected:
+        result["verification"] = "nothing to verify: no expected values supplied"
+        return result
+
+    path_values = {
+        p.outbound_name: kwargs[p.name]
+        for p in spec.params_at(ParamLocation.PATH)
+        if p.name in kwargs
+    }
+    try:
+        endpoint = check.endpoint.format(**path_values)
+    except KeyError as exc:
+        logger.warning("tool=%s cannot build verification endpoint: %s", spec.name, exc)
+        result["verification"] = f"could not build the verification read: missing {exc}"
+        return result
+
+    found: set[str] = set()
+    page = 1
+    try:
+        while page <= MAX_VERIFY_PAGES:
+            payload = await client.request(
+                "GET",
+                endpoint,
+                params={"per_page": VERIFY_PAGE_SIZE, "page": page},
+                # A verification read must not retry for a minute: the write has
+                # already happened and the caller is waiting on the answer.
+                max_attempts=1,
+            )
+            rows = _rows_from(payload, check.collection_key)
+            for row in rows:
+                value = row.get(check.identity_field)
+                if value is not None:
+                    found.add(str(value))
+            links = payload.get("_links") if isinstance(payload, dict) else None
+            if not rows or not (isinstance(links, dict) and "next" in links):
+                break
+            page += 1
+    except CATSAPIError as exc:
+        logger.warning("tool=%s verification read failed: %s request=%s", spec.name, exc, run_id)
+        result["verification"] = (
+            f"the write was accepted but could not be confirmed: {exc}. "
+            f"Re-read before assuming it did or did not land."
+        )
+        return result
+
+    if check.presence is Presence.PRESENT:
+        missing = sorted(expected - found)
+        result["verified"] = not missing
+        result["confirmed"] = sorted(expected & found)
+        if missing:
+            result["missing"] = missing
+            result["verification"] = (
+                f"CATS accepted the write but {check.identity_field} "
+                f"{missing} are still not present at {endpoint}."
+            )
+    else:
+        remaining = sorted(expected & found)
+        result["verified"] = not remaining
+        if remaining:
+            result["still_present"] = remaining
+            result["verification"] = (
+                f"CATS accepted the write but {check.identity_field} "
+                f"{remaining} are still present at {endpoint}."
+            )
+
+    return result
+
+
 def make_tool_function(
     spec: ToolSpec, client_getter: Callable[[], Any], ui_domain: Any = ""
 ) -> Callable:
@@ -257,6 +375,9 @@ def make_tool_function(
 
         if wants_bytes:
             return _as_mcp_file(spec, raw, run_id)
+
+        if spec.verification is not None:
+            return await _verified(spec, raw, kwargs, client, run_id)
 
         from cats_mcp.responses.shaping import shape_response
 

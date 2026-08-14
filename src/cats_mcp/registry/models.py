@@ -127,6 +127,46 @@ class Param:
         return self.wire_name or self.name
 
 
+class Presence(str, Enum):
+    """What a verification read should find after the mutation."""
+
+    PRESENT = "present"
+    ABSENT = "absent"
+
+
+@dataclass(frozen=True)
+class Verification:
+    """How to confirm a mutation actually landed.
+
+    A 2xx from CATS says the request was accepted, not that the record now says
+    what you intended. For most writes that distinction is academic. For a Do Not
+    Contact list it is not: believing someone was added when they were not means
+    contacting a person who asked you to stop, and nothing in the response would
+    have told you.
+
+    So the write is followed by a read, and the result reports `verified` rather
+    than leaving the caller to assume. Verification never changes what the write
+    did; a failed check is reported, not raised, because the mutation may well
+    have succeeded and re-running it on that assumption is worse.
+
+    * `endpoint` - what to read back, in the same `{placeholder}` form as a spec
+      endpoint. Filled from the call's path arguments.
+    * `collection_key` - HAL key holding the rows, when the read is a collection.
+    * `identity_field` - the field on each row that identifies the record, e.g.
+      `candidate_id` on a saved-list membership row. Note this is deliberately
+      not `id`: a membership row's `id` is the row, not the person.
+    * `expect_from` - the call argument holding the values that should now be
+      present or absent.
+    * `presence` - whether those values should be found or gone.
+    """
+
+    endpoint: str
+    identity_field: str
+    expect_from: str
+    collection_key: str | None = None
+    presence: Presence = Presence.PRESENT
+
+
 @dataclass(frozen=True)
 class ToolSpec:
     """A complete, declarative description of one CATS operation."""
@@ -151,6 +191,8 @@ class ToolSpec:
     replaced_by: str | None = None
     #: Extra scopes beyond the one implied by `safety`.
     extra_scopes: frozenset[str] = frozenset()
+    #: How to confirm the mutation landed. Reads never carry one.
+    verification: Verification | None = None
 
     # --- derived ------------------------------------------------------------
 
