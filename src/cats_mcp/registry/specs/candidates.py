@@ -80,7 +80,19 @@ SPECS: list[ToolSpec] = [
         operation="create",
         method="POST",
         endpoint="/candidates",
-        description="Create a new candidate in the system. Use this to add a new candidate record.\n\nWraps: POST /candidates",
+        description=(
+            "Create a new candidate record.\n\n"
+            "Email and phone are NOT set here. CATS stores them as sub-resources, "
+            "and a flat `email` or `phone` in this body is accepted and silently "
+            "discarded - verified against a live account, where the created "
+            "record came back with emails and phones null after a 201. Add them "
+            "afterwards with create_candidate_email and create_candidate_phone.\n\n"
+            "CATS returns an empty 201, so the new id arrives as `created_id` "
+            "when the Location header is present. If it is absent, find the "
+            "record with filter_candidates - allowing a moment, because a new "
+            "candidate is not immediately matchable.\n\n"
+            "Wraps: POST /candidates"
+        ),
         safety=Safety.WRITE,
         response=ResponseStrategy.RAW,
         toolset="candidates",
@@ -96,19 +108,6 @@ SPECS: list[ToolSpec] = [
                 annotation=str,
                 description="Candidate's last name",
                 location=ParamLocation.BODY,
-            ),
-            Param(
-                name="email",
-                annotation=str,
-                description="Email address",
-                location=ParamLocation.BODY,
-            ),
-            Param(
-                name="phone",
-                annotation=str | None,
-                description="Phone number (optional)",
-                location=ParamLocation.BODY,
-                default=None,
             ),
             Param(
                 name="resume_url",
@@ -132,7 +131,17 @@ SPECS: list[ToolSpec] = [
         operation="update",
         method="PUT",
         endpoint="/candidates/{candidate_id}",
-        description="Update an existing candidate's information. Use this to change fields on an existing candidate. Only the fields you supply are modified.\n\nWraps: PUT /candidates/{candidate_id}",
+        description=(
+            "Update an existing candidate's name. Only the fields you supply are "
+            "modified.\n\n"
+            "Email and phone are NOT changed here. CATS stores them as "
+            "sub-resources, and a flat `email` or `phone` in this body is "
+            "accepted and silently discarded - verified against a live account, "
+            "where a 204 advanced date_modified and left both fields null. Use "
+            "update_candidate_email and update_candidate_phone, or "
+            "create_candidate_email / create_candidate_phone to add one.\n\n"
+            "Wraps: PUT /candidates/{candidate_id}"
+        ),
         safety=Safety.WRITE,
         response=ResponseStrategy.RAW,
         toolset="candidates",
@@ -154,20 +163,6 @@ SPECS: list[ToolSpec] = [
                 name="last_name",
                 annotation=str | None,
                 description="Updated last name (optional)",
-                location=ParamLocation.BODY,
-                default=None,
-            ),
-            Param(
-                name="email",
-                annotation=str | None,
-                description="Updated email address (optional)",
-                location=ParamLocation.BODY,
-                default=None,
-            ),
-            Param(
-                name="phone",
-                annotation=str | None,
-                description="Updated phone number (optional)",
                 location=ParamLocation.BODY,
                 default=None,
             ),
