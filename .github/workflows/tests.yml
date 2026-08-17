@@ -1,0 +1,61 @@
+name: Tests
+
+# The suite is substantial (367 tests) and until now nothing ran it on a change.
+# The write-path defects fixed in 21d1abe were found by hand against a live
+# account; this is the net that catches the ones that are catchable.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A superseded push has nothing useful left to prove.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # The declared floor and the current release. requires-python is ">=3.10",
+      # so 3.10 is a claim this repo makes and should therefore be tested.
+      matrix:
+        python-version: ["3.10", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      # Catches the drift that was already present: pytest-xdist was added to
+      # the dev extra without re-locking, so the lockfile did not describe the
+      # environment anybody actually ran.
+      - name: Check lockfile is in sync with pyproject
+        run: uv lock --check
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Lint
+        run: uv run --frozen --extra dev ruff check .
+
+      # No `ruff format --check` gate on purpose: 20 of 88 files predate any
+      # formatting pass, so the gate would fail on arrival. Reformatting them
+      # is a real cleanup, but it belongs in its own commit where the diff can
+      # be read, not bundled into the change that turns CI on.
+
+      # --frozen pins the interpreter to the locked environment. Running the
+      # suite with an ambient interpreter drags in whatever is in global
+      # site-packages, which is how an unrelated OpenTelemetry install broke
+      # collection locally on a repo that has no OpenTelemetry dependency.
+      - name: Test
+        run: uv run --frozen --extra dev pytest -q
