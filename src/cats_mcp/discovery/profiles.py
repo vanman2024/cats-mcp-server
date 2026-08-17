@@ -61,6 +61,7 @@ PINNED_TOOLS: tuple[str, ...] = (
     "get_candidate_context",
     "get_candidate_summaries",
     "get_candidate_engagement",
+    "get_candidate_activity",
     "get_job_candidate_pool",
     "get_pipeline_summaries",
     "get_changed_records",
@@ -75,6 +76,7 @@ PINNED_TOOLS: tuple[str, ...] = (
     # Documents. download_attachment returns the file itself for the model to read.
     "list_candidate_attachments",
     "download_attachment",
+    "find_candidate_resume",
     # Saved lists, including Do Not Contact.
     "list_candidate_lists",
     "list_candidate_list_items",
