@@ -59,6 +59,11 @@ PINNED_TOOLS: tuple[str, ...] = (
     # get_candidate_context is first because it is the one that screens a whole
     # set before any per-person request is spent.
     "get_candidate_context",
+    # The compound query. Unpinned it is the tool least likely to be found by
+    # the caller who most needs it: a client that never discovers it falls back
+    # to sweeping the account one filter at a time, which is the cost issue #11
+    # was filed about.
+    "query_candidate_facts",
     "get_candidate_summaries",
     "get_candidate_engagement",
     "get_candidate_activity",

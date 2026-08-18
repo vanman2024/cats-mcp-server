@@ -20,6 +20,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from cats_mcp.auth.verifier import auth_is_enforced, build_auth_provider
+from cats_mcp.composites import query as composite_query
 from cats_mcp.composites import reads as composite_reads
 from cats_mcp.config import Settings, load_settings
 from cats_mcp.credentials.base import CredentialProvider
@@ -143,6 +144,9 @@ def create_server(
     # selection would let a caller reach data the selection was meant to exclude.
     if settings.requested_toolsets is None or "all" in settings.requested_toolsets:
         registered += composite_reads.register(
+            mcp, client_getter, enforce_auth=enforce_auth
+        )
+        registered += composite_query.register(
             mcp, client_getter, enforce_auth=enforce_auth
         )
 

@@ -20,7 +20,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOLS_DOC = ROOT / "docs" / "TOOLS.md"
 README = ROOT / "README.md"
 
-COMPOSITE_COUNT = 8
+COMPOSITE_COUNT = 9
 STATUS_TOOL_COUNT = 1
 TOTAL = len(REGISTRY) + COMPOSITE_COUNT + STATUS_TOOL_COUNT
 

@@ -32,9 +32,13 @@ OUTPUT = pathlib.Path("docs/TOOLS.md")
 def _count_composites() -> int:
     from fastmcp import FastMCP
 
+    from cats_mcp.composites import query as composite_query
     from cats_mcp.composites import reads as composite_reads
 
-    return composite_reads.register(FastMCP("count"), lambda: None, enforce_auth=False)
+    server = FastMCP("count")
+    return composite_reads.register(
+        server, lambda: None, enforce_auth=False
+    ) + composite_query.register(server, lambda: None, enforce_auth=False)
 
 
 COMPOSITE_COUNT = _count_composites()
