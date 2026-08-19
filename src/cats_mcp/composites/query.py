@@ -48,6 +48,7 @@ from cats_mcp.composites.reads import (
     _has_next_page,
     _list_memberships,
     _pipeline_rows,
+    _progress,
     _status_titles,
 )
 from cats_mcp.http.correlation import get_logger, set_run_id
@@ -449,6 +450,12 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                     params={"per_page": SEED_PAGE_SIZE, "page": page},
                 )
                 requests_used += 1
+                # The sweep is the slow part and the caller cannot see it. Its
+                # budget is the only honest denominator - the account's true
+                # size is exactly what this is trying to find out.
+                await _progress(
+                    requests_used, max_requests, f"sweeping {field}={value}, page {page}"
+                )
             except CATSAPIError as exc:
                 errors[f"seed:{field}={value}:page:{page}"] = str(exc)
                 seed_index += 1

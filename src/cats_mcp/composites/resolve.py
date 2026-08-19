@@ -50,6 +50,7 @@ from cats_mcp.composites.reads import (
     _embedded_rows,
     _gather_by_id,
     _has_next_page,
+    _progress,
     _project,
 )
 from cats_mcp.http.correlation import get_logger, set_run_id
@@ -566,6 +567,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                             params={"per_page": POOL_PAGE_SIZE, "page": page},
                         )
                     requests_used += 1
+                    await _progress(requests_used, max_requests, f"scanning jobs, page {page}")
                 except CATSAPIError as exc:
                     errors[f"{label}:page:{page}"] = str(exc)
                     break

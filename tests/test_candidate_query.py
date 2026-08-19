@@ -419,3 +419,39 @@ async def test_a_missing_field_is_kept_and_reported():
     assert data["count"] == 2, "a projection gap must not empty the result"
     assert data["candidates"][0]["unevaluated"] == ["title"]
     assert "unevaluated:title" in data["errors"]
+
+
+# --- progress reporting -----------------------------------------------------
+
+
+async def test_the_sweep_reports_progress_to_the_client():
+    """Issue #11 asked for this and nothing had it: a forty-request sweep was
+    indistinguishable from a hung call until it returned.
+
+    This test exists because _progress deliberately swallows its own errors -
+    telemetry must never fail a real call - which is exactly the shape of code
+    that can quietly do nothing forever. So assert a client actually receives
+    something rather than trusting the helper runs.
+    """
+    seen: list[tuple[float, float | None, str | None]] = []
+
+    async def on_progress(progress, total, message):
+        seen.append((progress, total, message))
+
+    def handler(request):
+        if request.url.path.endswith("/candidates/search"):
+            return httpx2.Response(
+                200, json=collection([candidate(1, "HD Tech")], has_next=True)
+            )
+        return httpx2.Response(200, json={})
+
+    async with Client(build(handler), progress_handler=on_progress) as client:
+        await client.call_tool(
+            "query_candidate_facts",
+            {"states": ["BC"], "max_requests": 3, "include": []},
+        )
+
+    assert seen, "the sweep reported no progress at all"
+    assert [p for p, _, _ in seen] == sorted(p for p, _, _ in seen), "progress went backwards"
+    assert all(t == 3 for _, t, _ in seen), "total should be the request budget"
+    assert any("sweeping" in (m or "") for _, _, m in seen), "no message named the work"

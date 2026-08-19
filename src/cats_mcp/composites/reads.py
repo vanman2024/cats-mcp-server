@@ -21,6 +21,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
 
+from fastmcp.server.dependencies import get_context
 from pydantic import Field
 
 from cats_mcp.http.correlation import get_logger, set_run_id
@@ -64,6 +65,24 @@ INCLUDE_OPTIONS: dict[str, str] = {
 PER_CANDIDATE_INCLUDES = frozenset({"identity", "custom_fields", "pipelines"})
 
 
+async def _progress(done: float, total: float | None = None, message: str | None = None) -> None:
+    """Tell the caller how far along a multi-request tool is, if anyone is listening.
+
+    Issue #11 asked for this and nothing here had it: a query that spends forty
+    requests sweeping an account looked identical to a hung one until it
+    returned. FastMCP excludes the context from the tool schema, so this costs
+    the model nothing and is not something it can be talked into setting.
+
+    Deliberately swallowing. Progress is a courtesy; the data is the job. A
+    client that never asked for progress, or a direct in-process call with no
+    request behind it, must not turn a completed sweep into an error.
+    """
+    try:
+        await get_context().report_progress(done, total, message)
+    except Exception:  # noqa: BLE001 - see docstring; never fail a call over telemetry
+        pass
+
+
 async def _gather_by_id(
     ids: list[int | str],
     fetch: Callable[[int | str], Any],
@@ -83,6 +102,9 @@ async def _gather_by_id(
                 results[str(identifier)] = await fetch(identifier)
             except CATSAPIError as exc:
                 errors[str(identifier)] = str(exc)
+            # Reported here rather than per tool: every batch composite fans out
+            # through this function, so one call covers all of them.
+            await _progress(len(results) + len(errors), len(ids))
 
     await asyncio.gather(*(one(i) for i in ids))
     return results, errors

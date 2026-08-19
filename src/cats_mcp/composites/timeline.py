@@ -67,6 +67,7 @@ from cats_mcp.composites.reads import (
     _has_next_page,
     _parse_iso,
     _pipeline_rows,
+    _progress,
     _project,
     _status_titles,
 )
@@ -378,6 +379,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             errors.update({f"{source}:{cid}": msg for cid, msg in fetch_errors.items()})
             requests_used += len(covered)
             source_requests[source] = source_requests.get(source, 0) + len(covered)
+            await _progress(requests_used, max_requests, f"read {source}")
             return payloads
 
         def note_page_limit(candidate_id: Any, source: str, payload: Any) -> None:
@@ -533,6 +535,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 )
                 requests_used += len(covered)
                 source_requests["pipeline_status"] = len(covered)
+                await _progress(requests_used, max_requests, "read pipeline_status")
 
                 for key, payload in payloads.items():
                     owner = pipeline_owner.get(str(key), {})
