@@ -355,6 +355,9 @@ COMPOSITE_CALLS: tuple[tuple[str, dict], ...] = (
     ("get_candidate_activity", {"candidate_ids": [42]}),
     ("find_candidate_resume", {"candidate_id": 42}),
     ("query_candidate_facts", {"states": ["BC"]}),
+    ("lookup_candidate", {"emails": ["pat@example.com"]}),
+    ("resolve_job", {"job_id": 7}),
+    ("get_candidate_timeline", {"candidate_ids": [42]}),
 )
 
 

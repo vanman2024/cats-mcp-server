@@ -20,8 +20,11 @@ from typing import Any
 from fastmcp import FastMCP
 
 from cats_mcp.auth.verifier import auth_is_enforced, build_auth_provider
+from cats_mcp.composites import lookup as composite_lookup
 from cats_mcp.composites import query as composite_query
 from cats_mcp.composites import reads as composite_reads
+from cats_mcp.composites import resolve as composite_resolve
+from cats_mcp.composites import timeline as composite_timeline
 from cats_mcp.config import Settings, load_settings
 from cats_mcp.credentials.base import CredentialProvider
 from cats_mcp.credentials.env import EnvCredentialProvider
@@ -147,6 +150,18 @@ def create_server(
             mcp, client_getter, enforce_auth=enforce_auth
         )
         registered += composite_query.register(
+            mcp, client_getter, enforce_auth=enforce_auth
+        )
+        # Question-shaped primitives (issue #12): identity resolution and a
+        # merged history, so a caller does not have to know the REST layout to
+        # ask "is this person already here" or "what happened to them".
+        registered += composite_lookup.register(
+            mcp, client_getter, enforce_auth=enforce_auth
+        )
+        registered += composite_resolve.register(
+            mcp, client_getter, enforce_auth=enforce_auth
+        )
+        registered += composite_timeline.register(
             mcp, client_getter, enforce_auth=enforce_auth
         )
 

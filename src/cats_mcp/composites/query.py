@@ -257,26 +257,23 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
 
     @mcp.tool(
         name="query_candidate_facts",
+        # Kept deliberately tight. Every pinned schema is resident in every
+        # request, and this description alone was 7.2KB of the 45KB budget -
+        # more than the next two pinned tools combined. The detail that used to
+        # live here is in the module docstring, where it costs nothing to skip.
         description=(
             "Answer a compound candidate question in one call: seed from exact CATS "
             "filters (state, city, or any field you name), then narrow locally by "
             "title, employer, saved-list membership, pipeline stage and whether a "
-            "contact method exists.\n\n"
-            "Use this instead of paging the account yourself. The atomic search takes "
-            "one criterion per request, so 'heavy-equipment mechanics in BC with a "
-            "phone number' otherwise means a full sweep plus local matching; this "
-            "composes it server-side inside a request budget you set.\n\n"
-            "The occupational vocabulary is yours. Pass the titles you care about - "
-            "'Field Service Technician', 'HD Tech', 'Mobile Equipment Technician' - "
-            "because CATS has no notion that those are one job and this tool will not "
-            "invent one.\n\n"
-            "Returns facts and match evidence: every row says which predicate matched "
-            "which field. Interpreting them is the caller's job. Rows that did not "
-            "match are not returned; `dropped_by` "
-            "reports how many each predicate removed so you can see the shape of the "
-            "result rather than trusting the count.\n\n"
-            "Budgeted and resumable. When max_requests or max_candidates is reached it "
-            "stops and returns next_cursor; pass it back to continue the same sweep."
+            "contact method exists. Use this instead of paging the account yourself - "
+            "the atomic search takes one criterion per request.\n\n"
+            "The occupational vocabulary is yours: pass the titles you mean, because "
+            "CATS does not know that 'HD Tech' and 'Field Service Technician' are one "
+            "job, and this tool will not invent that.\n\n"
+            "Returns facts and match evidence - every row names which predicate "
+            "matched which field, and `dropped_by` counts what each predicate removed. "
+            "Interpreting them is the caller's job. Budgeted and resumable: on reaching "
+            "max_requests or max_candidates it stops and returns next_cursor."
         ),
         tags={"ats", "candidate", "read", "batch", "search", "screening"},
         annotations={

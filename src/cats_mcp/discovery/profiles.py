@@ -66,6 +66,12 @@ PINNED_TOOLS: tuple[str, ...] = (
     "query_candidate_facts",
     "get_candidate_summaries",
     "get_candidate_engagement",
+    # get_candidate_timeline is deliberately NOT pinned. It is the one new
+    # primitive with a resident substitute: get_candidate_activity gives the
+    # bounded history and get_candidate_engagement the last-contact date,
+    # which is the common question. The full merged timeline is worth a
+    # search_tools round trip; three more pinned schemas were not worth the
+    # ~7KB it would have cost every single request.
     "get_candidate_activity",
     "get_job_candidate_pool",
     "get_pipeline_summaries",
@@ -75,6 +81,18 @@ PINNED_TOOLS: tuple[str, ...] = (
     "filter_candidates",
     "list_candidates",
     "get_candidate",
+    # Identity resolution: the question that comes *before* every other call.
+    # "Is this person already here, or duplicated?" has no substitute anywhere
+    # in the catalog - there is no other way to reach a candidate by normalized
+    # email or phone - so it is worth its ~3.7KB of resident schema.
+    #
+    # resolve_job is NOT pinned, on the same reasoning that keeps
+    # get_candidate_timeline out: list_jobs and filter_jobs are already
+    # resident and cover finding a job by a structured field. resolve_job adds
+    # cross-field search and ambiguity reporting, which is worth a search_tools
+    # round trip but not 4.8KB on every request. Revisit if callers turn out to
+    # reach for it constantly.
+    "lookup_candidate",
     # Account-specific screening data (certifications, trade qualifications).
     "list_candidate_custom_field_definitions",
     "list_candidate_custom_fields",

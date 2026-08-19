@@ -50,7 +50,7 @@ def build_server(handler=None, **overrides):
 
 #: Tools that exist outside the endpoint registry: the composite read
 #: primitives plus the synthetic connection-status tool.
-NON_REGISTRY_TOOLS = 10  # 8 composite reads + query_candidate_facts + get_connection_status
+NON_REGISTRY_TOOLS = 13  # 12 composite reads + get_connection_status
 
 
 async def test_raw_profile_exposes_the_whole_catalog():
