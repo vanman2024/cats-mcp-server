@@ -357,3 +357,65 @@ async def test_an_unreadable_cursor_restarts_instead_of_failing():
         )
 
     assert result.data["count"] == 1
+
+
+# --- a null field is an answer; a missing field is not ----------------------
+#
+# Both of these came out of the first live run against a real CATS account.
+# The search projection always carries `title`, and 549 of 800 BC candidates
+# carried it as null - they genuinely have no title recorded. Treating that as
+# "could not evaluate" kept all 549 in a search for heavy-equipment mechanics.
+
+
+async def test_a_null_field_is_not_a_match():
+    """title=None means the record has no title, which answers the predicate."""
+
+    def handler(request):
+        if request.url.path.endswith("/candidates/search"):
+            return httpx2.Response(
+                200,
+                json=collection(
+                    [
+                        candidate(1, "Heavy Equipment Mechanic"),
+                        candidate(2, None),
+                    ]
+                ),
+            )
+        return httpx2.Response(200, json={})
+
+    async with Client(build(handler)) as client:
+        result = await client.call_tool(
+            "query_candidate_facts",
+            {"states": ["BC"], "title": {"values": ["heavy equipment"]}, "include": []},
+        )
+
+    data = result.data
+    assert [r["candidate_id"] for r in data["candidates"]] == [1]
+    assert data["dropped_by"]["title"] == 1
+    assert "unevaluated:title" not in data["errors"], (
+        "a present-but-null field is answerable, not a projection gap"
+    )
+
+
+async def test_a_missing_field_is_kept_and_reported():
+    """If the projection omits the key entirely the predicate is unanswerable,
+    and silently dropping everyone would be the worse failure."""
+
+    def handler(request):
+        if request.url.path.endswith("/candidates/search"):
+            rows = [candidate(1, "HD Tech"), candidate(2, "HD Tech")]
+            for row in rows:
+                del row["title"]
+            return httpx2.Response(200, json=collection(rows))
+        return httpx2.Response(200, json={})
+
+    async with Client(build(handler)) as client:
+        result = await client.call_tool(
+            "query_candidate_facts",
+            {"states": ["BC"], "title": {"values": ["heavy equipment"]}, "include": []},
+        )
+
+    data = result.data
+    assert data["count"] == 2, "a projection gap must not empty the result"
+    assert data["candidates"][0]["unevaluated"] == ["title"]
+    assert "unevaluated:title" in data["errors"]

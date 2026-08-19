@@ -495,10 +495,19 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             kept = []
             unevaluated = 0
             for row in survivors:
-                if source not in row or row.get(source) is None:
-                    # The seed row did not carry the field. Dropping here would
-                    # discard the whole set over a projection detail, so the row
-                    # survives and the gap is reported instead of guessed at.
+                if source not in row:
+                    # The projection did not carry the field at all, so the
+                    # predicate is unanswerable rather than unsatisfied.
+                    # Dropping the whole set over a projection detail would be
+                    # worse than reporting the gap, so the row survives.
+                    #
+                    # A *present* field holding null is a different thing and is
+                    # handled below: it means the record has no value, which is
+                    # a real answer - the predicate is not satisfied. Conflating
+                    # the two kept 549 candidates with no title at all in a
+                    # search for heavy-equipment mechanics, against a live
+                    # account, which is exactly the false-positive flood this
+                    # tool exists to prevent.
                     row.setdefault("_unevaluated", []).append(label)
                     unevaluated += 1
                     kept.append(row)
