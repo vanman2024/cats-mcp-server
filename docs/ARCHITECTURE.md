@@ -29,6 +29,65 @@ database. A separate Supabase application. StaffHive product state.
 If a change would encode a decision about *who to contact, when, or why*, it
 belongs in the orchestrator, not here.
 
+## Facts versus judgment: a test for new work
+
+The list above only settles arguments if it is quick to apply, so here is the
+test the codebase already uses. For anything new - a tool, a prompt, a
+composite - ask what CATS itself would confirm versus what one customer
+decided.
+
+**A fact is something CATS would confirm if asked. A judgment is a rule a
+customer chose, and a different customer could choose differently.**
+
+- *"Is this person on list 1610515?"* is a fact: CATS holds the list, CATS
+  holds the membership, this adapter reports it. *"Placed people are
+  excluded"* is one customer's rule about what that membership should mean -
+  another account might run the identical list as a marketing suppression
+  list and want placed people included, not excluded.
+- *"Don't fetch a resume for someone you haven't screened"* is sequencing: an
+  order of operations true for every customer no matter what their screen
+  concludes. *"Placed, fired and current employees are excluded"* is policy: a
+  conclusion specific to one customer's hiring rules, and the server has no
+  way to know it is even true for the next one.
+
+Sequencing is legitimately this server's business; policy is not, and the
+difference is what each one needs to know to be enforced. `get_candidate_context`
+enforces "screen first, act second" - it refuses a per-candidate lookup over
+50 ids until the caller screens with `include=['lists']` first - and it does
+that without ever learning what the screen decided. The moment a tool needs to
+know *which* lists mean exclusion, or renames a status into "qualified" or
+"not a fit", it has stopped enforcing an order and started encoding one
+customer's answer for everyone else on the same adapter.
+
+There is a technical floor under this, not just a design preference. This
+version of FastMCP's `Context` exposes no `sample` or `create_message` - the
+server cannot hand a decision to a model. Any judgment written here would have
+to be hand-coded Python (`if status_id in (X, Y, Z): exclude`), which is not
+reasoning, it is a snapshot of what one customer wanted on the day someone
+wrote the `if`. It rots the first time that customer changes their mind, and
+it is simply wrong for the next customer on the same server.
+
+Judgment belongs one layer up, where it can actually reason and can change
+without a deploy: a custom GPT's instructions, or an orchestrator's system
+prompt (Mastra, today). Put "placed people are excluded for this client" there
+as text a human can edit and a model can apply - not here as code only a
+developer can change. The two layers also change at very different rates,
+which is the practical reason to keep them apart even where it would be
+technically possible not to: adapter semantics move when CATS moves - a new
+endpoint, a renamed field, a status id that shifts - and policy moves whenever
+a customer changes their mind about who counts as a good fit, which happens
+far more often than CATS ships a change.
+
+Existing tests enforce parts of this already, so a violation fails the build
+rather than waiting for review. `tests/test_prompts.py` checks every prompt's
+text and description against a vocabulary of recruiting judgment.
+`tests/test_boundary.py` extends that same vocabulary check across tool names
+and descriptions, and confirms no spec or composite hardcodes an
+account-specific list id, status id or company name.
+`tests/test_candidate_context.py` confirms `get_candidate_context` never
+returns a key like `excluded` or `fit` - only facts the caller can inspect and
+disagree with.
+
 ## Consumers
 
 ```

@@ -1,122 +1,155 @@
 name: Security Scan Pipeline
 
-# This workflow uses security scanning scripts installed by /foundation:hooks-setup
-# Scripts source: dev-lifecycle-marketplace/plugins/quality/skills/security-patterns/scripts/
-# - scan-secrets.sh: Detects API keys (Airtable, Anthropic, OpenAI, AWS, GitHub, etc.)
-# - scan-dependencies.sh: npm/pip vulnerability scanning
-# - scan-owasp.sh: OWASP security pattern detection
-# - generate-security-report.sh: Creates comprehensive security reports
+# This workflow replaced one scaffolded by /foundation:hooks-setup that could
+# never have passed. It is worth recording why, because the failure was silent
+# in a way that looked like flaky infrastructure:
+#
+#   * It ran actions/upload-artifact@v3, which GitHub now auto-fails at the
+#     "Set up job" step. The job died before a single step executed, so the
+#     logs showed no scan output and the check just read "failure".
+#   * Every step shelled out to scripts/scan-secrets.sh, scan-dependencies.sh,
+#     scan-owasp.sh and generate-security-report.sh. None of those files exist
+#     in this repository. The scaffold assumed a companion install that never
+#     happened, and three of the four calls were marked continue-on-error, so
+#     even past the artifact bug the failure would have surfaced late and
+#     unhelpfully.
+#
+# Everything below runs a tool that is actually fetched at run time.
 
 on:
   push:
-    branches: [main, develop, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
   schedule:
-    - cron: '0 2 * * 1'  # Weekly Monday 2 AM
+    # Weekly, so newly-disclosed advisories are noticed without a push.
+    - cron: '0 2 * * 1'
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   security-scan:
     runs-on: ubuntu-latest
+
+    # Read-only on purpose. Findings go to the job summary rather than a PR
+    # comment: a comment needs pull-requests:write, which a fork PR cannot be
+    # granted anyway, so the comment would fail exactly when an outside
+    # contribution most needs the result.
     permissions:
       contents: read
-      security-events: write
+
+    env:
+      GITLEAKS_VERSION: '8.30.1'
+      PIP_AUDIT_VERSION: '2.9.0'
+      BANDIT_VERSION: '1.9.2'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks scans history, not just the tip. A key that is committed
+          # and then deleted in a later commit of the same branch is still
+          # published; a working-tree scan would call that branch clean.
+          fetch-depth: 0
 
-      - name: Set up scan environment
-        run: |
-          mkdir -p security-scans
-          sudo apt-get update
-          sudo apt-get install -y jq
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
-      - name: Scan for secrets
-        id: secrets
+      # --- Secrets ---------------------------------------------------------
+      # Blocking. A leaked CATS key opens a customer's entire applicant
+      # database, and the remedy is always the same and always available:
+      # rotate the key and rewrite the commit.
+      - name: Install gitleaks
         run: |
-          bash scripts/scan-secrets.sh . > security-scans/secrets.json
-          SECRETS_COUNT=$(jq '.total_findings' security-scans/secrets.json)
-          echo "secrets_found=$SECRETS_COUNT" >> $GITHUB_OUTPUT
+          curl -sSfL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf gitleaks.tar.gz gitleaks
+          chmod +x gitleaks
+          ./gitleaks version
+
+      - name: Scan git history for secrets
+        run: |
+          ./gitleaks git . \
+            --no-banner \
+            --redact \
+            --report-format sarif \
+            --report-path gitleaks.sarif
+
+      # --- This repository's own code --------------------------------------
+      # Blocking at high severity + high confidence only. The suppressed
+      # findings are all understood: config.py binds 0.0.0.0 by default, which
+      # is correct for a containerised HTTP server and is overridable; and
+      # ratelimit.py uses random.uniform for retry jitter, which is not a
+      # cryptographic use. Both are code-review calls, not build blockers, so
+      # they are reported in the artifact rather than gating the branch.
+      - name: Static analysis of src/
+        run: |
+          uvx "bandit@${BANDIT_VERSION}" -r src/ -f json -o bandit.json || true
+          uvx "bandit@${BANDIT_VERSION}" -r src/ \
+            --severity-level high \
+            --confidence-level high
+
+      # --- Dependencies ----------------------------------------------------
+      # Reported, not blocking, and that is a deliberate and temporary choice.
+      #
+      # Every current finding sits in a transitive dependency that fastmcp
+      # 4.0.0b2 pins - click, cryptography, requests, urllib3, pyjwt, pygments,
+      # pydantic-settings, jaraco-context. No change to this repository's four
+      # declared dependencies clears them. Gating on them would paint every PR
+      # red for a condition no PR can fix, which trains people to merge past a
+      # red check - a worse outcome than an honest amber one.
+      #
+      # `uv lock --upgrade` does clear them, but it moves the whole tree,
+      # prereleases included. That is its own change with its own test run.
+      # When it lands, drop the continue-on-error below and this comment with it.
+      # continue-on-error, not `|| true`, so a finding still shows as an amber
+      # annotation on the PR instead of vanishing into a green step.
+      - name: Audit dependencies for known advisories
+        id: audit
         continue-on-error: true
-
-      - name: Scan dependencies
-        id: deps
         run: |
-          bash scripts/scan-dependencies.sh . > security-scans/dependencies.json
-          CRITICAL=$(jq '.severity_breakdown.critical' security-scans/dependencies.json)
-          echo "critical_vulns=$CRITICAL" >> $GITHUB_OUTPUT
-        continue-on-error: true
+          uv export --frozen --no-emit-project --no-hashes --extra dev \
+            --format requirements-txt -o requirements-audit.txt
+          uvx "pip-audit@${PIP_AUDIT_VERSION}" --no-deps -r requirements-audit.txt \
+            --format json --output pip-audit.json || true
+          uvx "pip-audit@${PIP_AUDIT_VERSION}" --no-deps -r requirements-audit.txt \
+            | tee pip-audit.txt
 
-      - name: Scan OWASP patterns
-        id: owasp
+      # --- Reporting -------------------------------------------------------
+      - name: Write job summary
+        if: always()
         run: |
-          bash scripts/scan-owasp.sh . > security-scans/owasp.json
-          OWASP_COUNT=$(jq '.total_findings' security-scans/owasp.json)
-          echo "owasp_findings=$OWASP_COUNT" >> $GITHUB_OUTPUT
-        continue-on-error: true
-
-      - name: Generate security report
-        run: |
-          bash scripts/generate-security-report.sh security-scans html security-report
-          bash scripts/generate-security-report.sh security-scans json security-report
+          {
+            echo "## Security scan"
+            echo
+            echo "| Scan | Gate | Result |"
+            echo "|------|------|--------|"
+            echo "| Secrets (gitleaks, full history) | blocking | see step status |"
+            echo "| Static analysis (bandit, src/) | blocking above high/high | see step status |"
+            echo "| Dependencies (pip-audit) | reported only | below |"
+            echo
+            if [ -s pip-audit.txt ]; then
+              echo '<details><summary>Dependency advisories</summary>'
+              echo
+              echo '```'
+              cat pip-audit.txt
+              echo '```'
+              echo
+              echo '</details>'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload scan results
-        uses: actions/upload-artifact@v3
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: security-scan-results
           path: |
-            security-scans/*.json
-            security-report.html
-            security-report.json
-
-      - name: Evaluate results
-        run: |
-          SECRETS=${{ steps.secrets.outputs.secrets_found }}
-          CRITICAL=${{ steps.deps.outputs.critical_vulns }}
-
-          echo "Security Scan Results:"
-          echo "  Secrets found: $SECRETS"
-          echo "  Critical vulnerabilities: $CRITICAL"
-
-          # Fail build if critical issues found
-          if [ "$SECRETS" -gt 0 ]; then
-            echo "ERROR: Secrets detected in codebase!"
-            exit 1
-          fi
-
-          if [ "$CRITICAL" -gt 0 ]; then
-            echo "ERROR: Critical vulnerabilities detected!"
-            exit 1
-          fi
-
-      - name: Comment on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const report = JSON.parse(fs.readFileSync('security-report.json', 'utf8'));
-
-            const body = `## Security Scan Results
-
-            | Metric | Count |
-            |--------|-------|
-            | Total Findings | ${report.executive_summary.total_findings} |
-            | Critical | ${report.executive_summary.severity_breakdown.critical} |
-            | High | ${report.executive_summary.severity_breakdown.high} |
-            | Medium | ${report.executive_summary.severity_breakdown.medium} |
-            | Low | ${report.executive_summary.severity_breakdown.low} |
-
-            **Risk Score:** ${report.executive_summary.risk_score}/100
-            **Risk Level:** ${report.executive_summary.risk_level}
-
-            [View full report](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})
-            `;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
+            gitleaks.sarif
+            bandit.json
+            pip-audit.json
+            pip-audit.txt
+          if-no-files-found: warn

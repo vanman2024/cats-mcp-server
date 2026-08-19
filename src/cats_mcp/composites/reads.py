@@ -18,12 +18,13 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
 
 from pydantic import Field
 
 from cats_mcp.http.correlation import get_logger, set_run_id
-from cats_mcp.http.errors import CATSAPIError
+from cats_mcp.http.errors import CATSAPIError, to_tool_error
 from cats_mcp.responses.shaping import SUMMARY_FIELDS
 
 logger = get_logger(__name__)
@@ -223,6 +224,50 @@ def _pipeline_rows(payload: Any, titles: dict[str, str]) -> list[dict[str, Any]]
                 entry["status"] = title
         rows.append(entry)
     return rows
+
+
+def _parse_iso(value: Any) -> datetime | None:
+    """Parse a CATS timestamp for lookback comparisons.
+
+    Activity dates come back as "2026-01-05T09:00:00-00:00", which
+    `datetime.fromisoformat` accepts directly. A bare date such as
+    "2023-05-27" from an older record parses too. Anything else is treated as
+    unparseable rather than raising - a lookback filter failing the whole
+    batch over one malformed string would be worse than keeping the row.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+#: Extensions CATS commonly serves for candidate documents. Consulted only
+#: when no attachment carries the is_resume flag, so this is genuinely a
+#: guess - the same .pdf extension covers a resume, a cover letter and a
+#: reference letter.
+_RESUME_LIKE_EXTENSIONS = frozenset({"pdf", "doc", "docx", "rtf", "txt"})
+
+#: Filename tokens that are a stronger signal than extension alone.
+_RESUME_FILENAME_HINTS = ("resume", "cv")
+
+
+def _looks_like_a_resume(attachment: dict[str, Any]) -> bool:
+    """Fallback heuristic for a candidate with no attachment flagged is_resume.
+
+    Checked only when nothing carries the flag - if CATS already said which
+    attachment is the resume, guessing from the filename would be strictly
+    worse information than what is already there.
+    """
+    filename = str(attachment.get("filename") or "").lower()
+    if any(hint in filename for hint in _RESUME_FILENAME_HINTS):
+        return True
+    extension = filename.rsplit(".", 1)[-1] if "." in filename else ""
+    return extension in _RESUME_LIKE_EXTENSIONS
 
 
 def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) -> int:
@@ -649,4 +694,185 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             "rate_limit": client.rate_limit.snapshot(),
         }
 
-    return 6
+    @mcp.tool(
+        name="get_candidate_activity",
+        description=(
+            "Retrieve bounded activity history for a batch of candidates - the actual "
+            "logged rows (calls, emails, notes and other recorded touches), not a "
+            "summary. This is one CATS request per candidate, so it is O(N): batch a "
+            "screened set, not a whole database sweep. Defaults to the last 365 days; "
+            "narrow lookback_days or types to keep the result small. Each candidate's "
+            "most recent 100 activities are checked against the window.\n\n"
+            "This differs from get_candidate_engagement, which reports only the most "
+            "recent contact date and a count - cheap, and enough to decide who has gone "
+            "cold. Use get_candidate_activity when the caller needs the actual rows: "
+            "what type of contact, when, and any notes recorded against it."
+        ),
+        tags={"ats", "candidate", "activity", "read", "batch"},
+        annotations=read_annotations,
+        **tool_kwargs,
+    )
+    async def get_candidate_activity(
+        candidate_ids: Annotated[
+            list[int | str],
+            Field(
+                description=f"Candidate ids to fetch activity for. Maximum {MAX_BATCH} "
+                "per call."
+            ),
+        ],
+        lookback_days: Annotated[
+            int,
+            Field(
+                description="Only include activities created within this many days of "
+                "now. Default 365."
+            ),
+        ] = 365,
+        types: Annotated[
+            list[str] | None,
+            Field(
+                description=(
+                    "Keep only activities whose type contains one of these strings, "
+                    "matched case-insensitively (e.g. types=['call'] matches "
+                    "call_talked, call_lvm and call_missed; types=['email'] matches "
+                    "email). Omit to include every type."
+                )
+            ),
+        ] = None,
+    ) -> dict[str, Any]:
+        set_run_id()
+        ids = _dedupe(candidate_ids)[:MAX_BATCH]
+        client = client_getter()
+        cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+        wanted_types = [t.strip().lower() for t in (types or []) if t.strip()]
+
+        async def fetch(cid):
+            return await client.request(
+                "GET", f"/candidates/{cid}/activities", params={"per_page": 100}
+            )
+
+        results, errors = await _gather_by_id(ids, fetch)
+
+        rows = []
+        for cid, payload in results.items():
+            kept = []
+            for activity in _embedded_rows(payload):
+                created = _parse_iso(activity.get("date_created"))
+                if created is not None and created < cutoff:
+                    continue
+                if wanted_types:
+                    atype = (activity.get("type") or "").lower()
+                    if not any(t in atype for t in wanted_types):
+                        continue
+                kept.append(_project(activity, SUMMARY_FIELDS["activity"]))
+            rows.append({"candidate_id": cid, "activity_count": len(kept), "activities": kept})
+
+        return {
+            "candidates": rows,
+            "count": len(rows),
+            "requested": len(candidate_ids),
+            "truncated": len(_dedupe(candidate_ids)) > MAX_BATCH,
+            "lookback_days": lookback_days,
+            "types": wanted_types or None,
+            "errors": errors,
+            "requests_used": len(ids),
+            "rate_limit": client.rate_limit.snapshot(),
+        }
+
+    @mcp.tool(
+        name="find_candidate_resume",
+        description=(
+            "Find and retrieve a candidate's resume in one call, returning the document "
+            "itself as content the model can read. Replaces the two-step "
+            "list_candidate_attachments then download_attachment sequence, and removes "
+            "the guesswork of deciding which attachment is the resume.\n\n"
+            "Prefers whichever attachment CATS has flagged is_resume. If none is "
+            "flagged, falls back to a filename heuristic (a 'resume' or 'cv' token, or "
+            "a resume-typical extension) and the response says so, since that guess can "
+            "be wrong. If several attachments qualify, the newest is returned and the "
+            "response reports how many were considered.\n\n"
+            "If the candidate has no attachment that looks like a resume, this returns "
+            "a structured answer saying so rather than raising - check `found` before "
+            "assuming one exists. Files over 5MB are refused, same as "
+            "download_attachment."
+        ),
+        tags={"ats", "candidate", "attachment", "resume", "read"},
+        annotations=read_annotations,
+        **tool_kwargs,
+    )
+    async def find_candidate_resume(
+        candidate_id: Annotated[
+            int | str, Field(description="The candidate whose resume to find")
+        ],
+    ) -> Any:
+        run_id = set_run_id()
+        client = client_getter()
+
+        try:
+            payload = await client.request(
+                "GET", f"/candidates/{candidate_id}/attachments", params={"per_page": 100}
+            )
+        except CATSAPIError as exc:
+            raise to_tool_error(exc) from exc
+
+        attachments = _embedded_rows(payload)
+        requests_used = 1
+
+        flagged = [a for a in attachments if a.get("is_resume")]
+        if flagged:
+            pool = flagged
+            selection_method = "is_resume flag"
+        else:
+            pool = [a for a in attachments if _looks_like_a_resume(a)]
+            selection_method = (
+                "filename heuristic - no attachment was flagged is_resume, this is a "
+                "guess"
+            )
+
+        if not pool:
+            return {
+                "candidate_id": candidate_id,
+                "found": False,
+                "attachment_count": len(attachments),
+                "message": (
+                    "No attachment on this candidate looks like a resume."
+                    if attachments
+                    else "This candidate has no attachments."
+                ),
+                "requests_used": requests_used,
+                "rate_limit": client.rate_limit.snapshot(),
+            }
+
+        epoch = datetime.min.replace(tzinfo=timezone.utc)
+        chosen = max(pool, key=lambda a: _parse_iso(a.get("date_created")) or epoch)
+
+        try:
+            raw = await client.request(
+                "GET", f"/attachments/{chosen['id']}/download", raw_bytes=True
+            )
+        except CATSAPIError as exc:
+            raise to_tool_error(exc) from exc
+        requests_used += 1
+
+        from fastmcp.tools import ToolResult
+
+        from cats_mcp.registry.build import _as_mcp_file
+        from cats_mcp.registry.catalog import REGISTRY
+
+        download_spec = REGISTRY.by_name("download_attachment")
+        content = _as_mcp_file(download_spec, raw, run_id)
+
+        metadata: dict[str, Any] = {
+            "candidate_id": candidate_id,
+            "found": True,
+            "attachment": _project(chosen, SUMMARY_FIELDS["attachment"]),
+            "selection_method": selection_method,
+            "matched_count": len(pool),
+            "requests_used": requests_used,
+            "rate_limit": client.rate_limit.snapshot(),
+        }
+        if len(pool) > 1:
+            metadata["note"] = f"{len(pool)} attachments matched; returned the newest."
+
+        return ToolResult(content=content, structured_content=metadata)
+
+    return 8

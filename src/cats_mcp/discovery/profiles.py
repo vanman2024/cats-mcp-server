@@ -59,8 +59,14 @@ PINNED_TOOLS: tuple[str, ...] = (
     # get_candidate_context is first because it is the one that screens a whole
     # set before any per-person request is spent.
     "get_candidate_context",
+    # The compound query. Unpinned it is the tool least likely to be found by
+    # the caller who most needs it: a client that never discovers it falls back
+    # to sweeping the account one filter at a time, which is the cost issue #11
+    # was filed about.
+    "query_candidate_facts",
     "get_candidate_summaries",
     "get_candidate_engagement",
+    "get_candidate_activity",
     "get_job_candidate_pool",
     "get_pipeline_summaries",
     "get_changed_records",
@@ -75,6 +81,7 @@ PINNED_TOOLS: tuple[str, ...] = (
     # Documents. download_attachment returns the file itself for the model to read.
     "list_candidate_attachments",
     "download_attachment",
+    "find_candidate_resume",
     # Saved lists, including Do Not Contact.
     "list_candidate_lists",
     "list_candidate_list_items",

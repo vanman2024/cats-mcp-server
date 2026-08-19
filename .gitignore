@@ -55,3 +55,10 @@ __pycache__/
 # Personal Claude Code settings (permission grants, local MCP toggles).
 # The shared config is .claude/settings.json; this file is per-developer.
 .claude/settings.local.json
+
+# Dev-lifecycle Product Graph and its projections. Both are rebuilt from the
+# repository by project-sync, so they are derived state, not sources of truth.
+# Committing project.db produces merge conflicts nobody can resolve, on a
+# binary file nobody should read. specs/ IS tracked -- that is the source.
+.project-cache/
+.generated/
