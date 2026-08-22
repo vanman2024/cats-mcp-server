@@ -12,6 +12,19 @@ the way in. Those are the two failure modes worth guarding, and neither is
   * the request budget actually bounds the call, and the response says what it
     could not afford rather than passing a short history off as a complete one
 
+Since issue #17 the tool returns a typed `TimelineResult` rather than a bare
+dict, which adds two more:
+
+  * the tool publishes an object-rooted output schema, so a client knows the
+    shape before it calls and can validate what came back
+  * the human-readable content is a one-line summary, not a second copy of the
+    payload - which also keeps names and notes out of the display surface
+
+Assertions read `result.structured_content`, the payload exactly as it goes
+over the wire. `result.data` is the same thing rehydrated by the client into a
+typed object from the published schema; one test pins that, the rest use the
+dict because a wrong key is what regresses.
+
 The tool is not registered in server.py here; the tests build a server around
 `timeline.register` directly, so this file exercises the module rather than the
 wiring.
@@ -100,9 +113,21 @@ def route(
     return handler
 
 
-async def call(handler, arguments):
+async def call_result(handler, arguments):
+    """The whole result: content blocks, structured payload and typed data."""
     async with Client(build(handler)) as client:
-        return (await client.call_tool("get_candidate_timeline", arguments)).data
+        return await client.call_tool("get_candidate_timeline", arguments)
+
+
+async def call(handler, arguments):
+    """The structured payload as it goes over the wire."""
+    return (await call_result(handler, arguments)).structured_content
+
+
+async def output_schema(handler=None):
+    async with Client(build(handler or route())) as client:
+        tool = next(t for t in await client.list_tools() if t.name == "get_candidate_timeline")
+    return tool.output_schema
 
 
 # --- ordering across sources -------------------------------------------------
@@ -333,7 +358,7 @@ async def test_an_unresolvable_status_id_is_returned_unlabelled():
 
     change = next(r for r in data["timeline"] if r["source"] == "pipeline_status")
     assert change["status_id"] == 4242
-    assert "status" not in change, "an unknown id must not be given an invented label"
+    assert change["status"] is None, "an unknown id must not be given an invented label"
 
 
 async def test_a_workflow_failure_does_not_fail_the_call():
@@ -358,7 +383,7 @@ async def test_a_workflow_failure_does_not_fail_the_call():
 
     row = data["timeline"][0]
     assert row["status_id"] == 9
-    assert "status" not in row
+    assert row["status"] is None
 
 
 async def test_stage_history_implies_the_pipeline_read_that_finds_the_ids():
@@ -399,9 +424,12 @@ async def test_the_request_budget_bounds_the_call_and_says_what_it_missed():
     data = await call(handler, {"candidate_ids": [1, 2, 3], "max_requests": 4})
 
     assert len(calls) == 4, f"spent more than the budget: {calls}"
-    assert data["requests_used"] == 4
+    assert data["execution"]["requests_used"] == 4
     assert set(data["sources_skipped"]) == {"activity", "task"}
-    assert data["rate_limit"] is not None
+    assert data["execution"]["rate_limit"] == {"limit": None, "remaining": None}
+    assert data["execution"]["truncated"] is True, (
+        "a budget that stopped the read early has to say so"
+    )
 
 
 async def test_a_partial_source_read_is_reported_per_source():
@@ -416,8 +444,8 @@ async def test_a_partial_source_read_is_reported_per_source():
     )
 
     assert data["source_requests"]["activity"] == 2
-    assert "activity" in data["errors"]
-    assert "2 of 3" in data["errors"]["activity"]
+    assert "activity" in data["execution"]["errors"]
+    assert "2 of 3" in data["execution"]["errors"]["activity"]
 
 
 async def test_more_history_than_one_page_is_reported_not_silently_shortened():
@@ -454,6 +482,138 @@ async def test_the_row_cap_keeps_the_most_recent_events_and_counts_the_rest():
     assert [r["event_id"] for r in data["timeline"]] == [504, 505]
     assert data["omitted_by_row_cap"] == 3
     assert data["row_cap_reached"] is True
+
+
+# --- the typed contract (issue #17) -----------------------------------------
+
+
+#: Top-level fields the schema promises. Spelled out rather than derived from
+#: the model, so quietly dropping one from `TimelineResult` fails here instead
+#: of changing what both sides agree on and passing.
+EXPECTED_PROPERTIES = {
+    "timeline",
+    "count",
+    "candidate_ids",
+    "requested",
+    "candidate_ids_truncated",
+    "sources",
+    "source_requests",
+    "sources_skipped",
+    "incomplete",
+    "window",
+    "out_of_window",
+    "undated",
+    "omitted_by_row_cap",
+    "row_cap_reached",
+    "execution",
+    "note",
+}
+
+
+async def test_the_tool_publishes_an_object_rooted_output_schema():
+    """Without this the tool returns an untyped dict: nothing tells a client
+    what comes back, and nothing validates that it still does."""
+    schema = await output_schema()
+
+    assert schema is not None, "a tool returning ToolResult with no output_schema has none"
+    assert schema["type"] == "object", (
+        "an object root is what lets a client address fields by name; a wrapped "
+        "scalar root would hide the whole payload under 'result'"
+    )
+    assert set(schema["properties"]) == EXPECTED_PROPERTIES
+
+
+async def test_the_schema_names_every_source_specific_field_on_the_event():
+    """The point of the exercise. Rows carry different extras per source, and
+    a caller cannot know `from_status` exists until it happens to see one - so
+    they are declared fields, not whatever the last row happened to hold."""
+    schema = await output_schema()
+    event = schema["properties"]["timeline"]["items"]["properties"]
+
+    assert {
+        "candidate_id",
+        "source",
+        "type",
+        "date",
+        "date_field",
+        "date_raw",
+        "event_id",
+        "pipeline_id",
+        "job_id",
+        "status_id",
+        "status",
+        "from_status",
+        "from_status_id",
+        "summary",
+        "due_date",
+        "is_completed",
+    } <= set(event)
+
+    assert "null" in str(event["date"]), "date must stay nullable - undated rows are returned"
+    assert "null" in str(event["date_raw"]), "an unparseable original has to survive"
+
+    facts = schema["properties"]["execution"]["properties"]
+    assert {"requests_used", "rate_limit", "truncated", "next_cursor", "errors"} <= set(facts)
+
+
+#: The display line is counts and source names. 200 bytes is roughly double the
+#: longest it can be (all five source names, every optional clause present), so
+#: this fails on a payload leaking back in rather than on ordinary wording.
+CONTENT_BYTE_CEILING = 200
+
+
+async def test_the_display_content_is_one_short_line_not_a_copy_of_the_payload():
+    """Returning the model directly makes FastMCP serialise the whole result
+    into display content as well - the duplication #17 was filed about. It also
+    puts notes and names on a surface clients render without being asked, which
+    #21 keeps them off."""
+    handler = route(
+        activities=[
+            {
+                "id": 501,
+                "type": "call_talked",
+                "date_created": "2026-01-05",
+                "notes": "Spoke to Priya Raghunathan about the Kamloops site",
+            }
+        ],
+        tasks=[{"id": 700, "title": "Send paperwork", "due_date": "2026-04-01"}],
+    )
+
+    result = await call_result(handler, {"candidate_ids": [1], "sources": ["activity", "task"]})
+
+    assert len(result.content) == 1, "one summary line, not a block per row"
+    text = result.content[0].text
+    assert len(text.encode()) <= CONTENT_BYTE_CEILING, f"display content is not a summary: {text}"
+    assert "\n" not in text
+
+    assert "Priya Raghunathan" not in text, "a name must not reach the display surface"
+    assert "Kamloops" not in text
+    assert "Send paperwork" not in text, "nor any event text"
+    assert "date_field" not in text, "the payload must not be duplicated into the content"
+
+    assert "2 events" in text and "2 sources" in text
+    assert result.structured_content["timeline"][0]["summary"] == (
+        "Spoke to Priya Raghunathan about the Kamloops site"
+    ), "the detail is still there, in the structured result where it was asked for"
+
+
+async def test_the_structured_result_rehydrates_into_typed_objects():
+    """What the schema buys the caller: the client rebuilds the result from it,
+    so a field is an attribute with a type rather than a key that might be
+    missing."""
+    handler = route(
+        activities=[{"id": 501, "type": "call_talked", "date_created": "2026-01-05"}]
+    )
+
+    result = await call_result(handler, {"candidate_ids": [1], "sources": ["activity"]})
+
+    assert type(result.data).__name__ == "TimelineResult"
+    assert result.data.count == 1
+    assert result.data.timeline[0].source == "activity"
+    assert result.data.timeline[0].date_field == "date_created"
+    assert result.data.execution.requests_used == 1
+    assert result.data.execution.next_cursor is None
+    assert result.data.window.since is None
 
 
 # --- the fact/judgment boundary ---------------------------------------------
@@ -493,6 +653,32 @@ async def test_the_output_carries_no_verdict_shaped_key():
     )
 
     assert not _banned_keys(data), f"verdict-shaped keys in the result: {_banned_keys(data)}"
+
+
+def _schema_field_names(schema, found=None):
+    """Every property name the schema declares, at any depth."""
+    found = found if found is not None else set()
+    if isinstance(schema, dict):
+        properties = schema.get("properties")
+        if isinstance(properties, dict):
+            found.update(properties)
+        for value in schema.values():
+            _schema_field_names(value, found)
+    elif isinstance(schema, list):
+        for item in schema:
+            _schema_field_names(item, found)
+    return found
+
+
+async def test_no_declared_field_is_verdict_shaped():
+    """A typed result publishes its field names whether or not a row is ever
+    populated, so the boundary has to hold in the schema and not only in the
+    data a particular call happened to produce."""
+    names = _schema_field_names(await output_schema())
+
+    assert names, "the schema declares no fields at all"
+    offending = sorted(n for n in names if n.lower() in BANNED_VERDICT_KEYS)
+    assert not offending, f"verdict-shaped field names in the output schema: {offending}"
 
 
 async def test_the_description_carries_no_recruiting_policy_vocabulary():

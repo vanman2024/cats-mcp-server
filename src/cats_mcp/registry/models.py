@@ -53,6 +53,12 @@ class Transform(str, Enum):
     TO_INT = "to_int"
     #: Merge a caller-supplied dict into the request body at the top level.
     SPREAD = "spread"
+    #: 123 -> {"id": 123, "type": "candidate"}. A CATS task attaches to a
+    #: record through `data_item`, not a `candidate_id` field. Sending
+    #: candidate_id instead produced a 500, and omitting the association
+    #: entirely produced a 500 as well - it is required. Verified against the
+    #: live API; see issue #15.
+    TO_CANDIDATE_DATA_ITEM = "to_candidate_data_item"
 
 
 def apply_transform(transform: Transform, value: Any) -> Any:
@@ -66,6 +72,8 @@ def apply_transform(transform: Transform, value: Any) -> Any:
         return [{"job_id": v} for v in value]
     if transform is Transform.TO_INT:
         return int(value)
+    if transform is Transform.TO_CANDIDATE_DATA_ITEM:
+        return {"id": value, "type": "candidate"}
     return value
 
 

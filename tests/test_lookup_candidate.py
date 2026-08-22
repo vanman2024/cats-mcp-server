@@ -10,9 +10,17 @@ are the ones that quietly answer the wrong question:
     a search row carries no emails or phones at all
   * a budget stop that reads as "nothing else exists"
 
-Every test below fails loudly if one of those regresses. The last two guard the
-boundary itself: the result carries evidence, never a verdict, and the tool's
-own description stays out of the business of recruiting judgement.
+Every test below fails loudly if one of those regresses. The last group guards
+the boundary itself: the result carries evidence, never a verdict, the tool's
+own description stays out of the business of recruiting judgement, and the
+display line the caller sees carries no contact detail.
+
+The tool returns a `ToolResult`, so the payload arrives in two forms and both
+are asserted on here. `result.structured_content` is the raw JSON object;
+`result.data` is that object rebuilt against the published output schema, which
+means attribute access rather than subscripting. Asserting on the dict is what
+checks the wire contract - a key renamed in `LookupResult` changes it, and the
+rebuilt object would hide that behind whatever the new attribute is called.
 """
 
 from __future__ import annotations
@@ -146,13 +154,16 @@ async def test_two_records_sharing_one_email_are_both_returned_with_the_evidence
     async with Client(build(handler)) as client:
         result = await client.call_tool("lookup_candidate", {"emails": ["pat@example.com"]})
 
-    data = result.data
+    data = result.structured_content
     assert [r["candidate_id"] for r in data["candidates"]] == [1, 2]
     for row in data["candidates"]:
         assert row["matched_fields"] == ["email"], row
         assert row["evidence"][0]["normalized"] == "pat@example.com"
     # The second record stores a differently-cased spelling of the same address.
-    assert data["candidates"][1]["evidence"][0]["stored"] == "Pat@Example.COM"
+    assert data["candidates"][1]["evidence"][0]["value"] == "Pat@Example.COM"
+    # And the same answer, rebuilt from the published output schema.
+    assert result.data.count == 2
+    assert result.data.candidates[1].evidence[0].value == "Pat@Example.COM"
 
 
 async def test_an_email_differing_only_in_case_still_matches():
@@ -169,15 +180,15 @@ async def test_an_email_differing_only_in_case_still_matches():
     async with Client(build(handler)) as client:
         result = await client.call_tool("lookup_candidate", {"emails": ["PAT@Example.com"]})
 
-    data = result.data
+    data = result.structured_content
     assert asked == ["PAT@Example.com", "pat@example.com"], (
         "both the caller's spelling and its normalized form must be asked for, "
         "because CATS indexes the stored spelling"
     )
     row = data["candidates"][0]
     assert row["matched_fields"] == ["email"]
-    assert row["evidence"][0]["asked_for"] == "PAT@Example.com"
-    assert row["evidence"][0]["stored"] == "pat@example.com"
+    assert row["evidence"][0]["matched"] == "PAT@Example.com"
+    assert row["evidence"][0]["value"] == "pat@example.com"
 
 
 async def test_phone_matching_ignores_formatting():
@@ -192,9 +203,9 @@ async def test_phone_matching_ignores_formatting():
     async with Client(build(handler)) as client:
         result = await client.call_tool("lookup_candidate", {"phones": ["250-555-0111"]})
 
-    row = result.data["candidates"][0]
+    row = result.structured_content["candidates"][0]
     assert row["matched_fields"] == ["phone"]
-    assert row["evidence"][0]["stored"] == "(250) 555 0111"
+    assert row["evidence"][0]["value"] == "(250) 555 0111"
     assert row["evidence"][0]["normalized"] == "2505550111"
 
 
@@ -219,11 +230,11 @@ async def test_a_phone_the_record_omits_is_read_from_the_sub_collection():
     async with Client(build(handler)) as client:
         result = await client.call_tool("lookup_candidate", {"phones": ["2505550111"]})
 
-    data = result.data
+    data = result.structured_content
     assert "/v3/candidates/5/phones" in paths, f"sub-collection never read: {paths}"
     row = data["candidates"][0]
     assert row["matched_fields"] == ["phone"]
-    assert row["evidence"][0]["read_from"] == "phones sub-collection"
+    assert row["evidence"][0]["source"] == "phones sub-collection"
     assert row["phones"] == ["+1 (250) 555-0111"]
 
 
@@ -250,7 +261,7 @@ async def test_every_field_that_matched_is_reported_not_just_the_one_searched():
             {"emails": ["pat@example.com"], "phones": ["250-555-0111"]},
         )
 
-    row = result.data["candidates"][0]
+    row = result.structured_content["candidates"][0]
     assert sorted(row["matched_fields"]) == ["email", "phone"]
     assert [f["field"] for f in row["found_by"]] == ["email"], (
         "found_by records what surfaced the row; matched_fields records what held up"
@@ -283,7 +294,7 @@ async def test_a_name_probes_the_last_token_and_confirms_the_whole_name():
     async with Client(build(handler)) as client:
         result = await client.call_tool("lookup_candidate", {"names": ["Pat Lee"]})
 
-    data = result.data
+    data = result.structured_content
     assert probes == [{"field": "last_name", "filter": "exactly", "value": "lee"}]
     assert [r["candidate_id"] for r in data["candidates"]] == [1]
     assert data["candidates"][0]["matched_fields"] == ["name"]
@@ -303,7 +314,7 @@ async def test_a_row_cats_surfaced_whose_value_does_not_match_is_not_a_match():
     async with Client(build(handler)) as client:
         result = await client.call_tool("lookup_candidate", {"emails": ["pat@example.com"]})
 
-    data = result.data
+    data = result.structured_content
     assert data["candidates"] == []
     assert data["count"] == 0
     assert data["unconfirmed"][0]["candidate_id"] == 7
@@ -318,9 +329,9 @@ async def test_an_id_the_caller_already_has_is_read_directly():
     async with Client(build(handler)) as client:
         result = await client.call_tool("lookup_candidate", {"candidate_ids": [8]})
 
-    row = result.data["candidates"][0]
+    row = result.structured_content["candidates"][0]
     assert row["matched_fields"] == ["candidate_id"]
-    assert result.data["requests_used"] == 1
+    assert result.structured_content["execution"]["requests_used"] == 1
 
 
 # --- budget -----------------------------------------------------------------
@@ -346,12 +357,12 @@ async def test_the_request_budget_is_respected_and_reported():
             },
         )
 
-    data = result.data
+    execution = result.structured_content["execution"]
     assert len(calls) == 2, f"spent more than the budget allowed: {calls}"
-    assert data["requests_used"] == 2
-    assert data["truncated"] is True
-    assert "probes" in data["errors"]
-    assert data["rate_limit"] == {"limit": None, "remaining": None}
+    assert execution["requests_used"] == 2
+    assert execution["truncated"] is True
+    assert "probes" in execution["errors"]
+    assert execution["rate_limit"] == {"limit": None, "remaining": None}
 
 
 async def test_an_overflowing_probe_says_so_rather_than_reporting_a_whole_answer():
@@ -368,9 +379,9 @@ async def test_an_overflowing_probe_says_so_rather_than_reporting_a_whole_answer
     async with Client(build(handler)) as client:
         result = await client.call_tool("lookup_candidate", {"names": ["Pat Lee"]})
 
-    data = result.data
-    assert data["truncated"] is True
-    assert any("first page" in message for message in data["errors"].values())
+    execution = result.structured_content["execution"]
+    assert execution["truncated"] is True
+    assert any("first page" in message for message in execution["errors"].values())
 
 
 async def test_a_failed_probe_is_reported_rather_than_read_as_no_match():
@@ -385,9 +396,12 @@ async def test_a_failed_probe_is_reported_rather_than_read_as_no_match():
     async with Client(build(handler)) as client:
         result = await client.call_tool("lookup_candidate", {"emails": ["pat@example.com"]})
 
-    data = result.data
+    data = result.structured_content
     assert data["candidates"] == []
-    assert data["errors"], "a rejected probe must not look like an empty result"
+    assert data["execution"]["errors"], "a rejected probe must not look like an empty result"
+    assert data["probes"][0]["rows"] is None, (
+        "a probe CATS refused must report null rows, not zero - zero is an answer"
+    )
 
 
 async def test_a_probe_field_can_be_redirected_without_changing_the_matching():
@@ -409,7 +423,12 @@ async def test_a_probe_field_can_be_redirected_without_changing_the_matching():
         )
 
     assert sent == ["email_address"]
-    assert result.data["candidates"][0]["matched_fields"] == ["email"]
+    data = result.structured_content
+    assert data["candidates"][0]["matched_fields"] == ["email"]
+    assert data["probes"][0]["for"] == "email", (
+        "the probe report says which identity kind it was looking for, whatever "
+        "CATS field the override pointed it at"
+    )
 
 
 async def test_an_identity_is_required():
@@ -451,7 +470,10 @@ async def test_the_result_carries_no_verdict_shaped_key():
             },
         )
 
-    hits = _find_banned_keys(result.data)
+    # The raw object, deliberately: result.data is rebuilt into a typed object
+    # whose attributes _find_banned_keys cannot walk, so checking it would pass
+    # by looking at nothing. The wire payload is what a caller actually reads.
+    hits = _find_banned_keys(result.structured_content)
     assert not hits, f"lookup_candidate returned verdict-shaped keys: {hits}"
 
 
@@ -470,3 +492,131 @@ async def test_the_description_carries_no_recruiting_policy_vocabulary():
     allowed = VERIFIED_SAFE_USAGE.get("lookup_candidate", frozenset())
     hits = [word for word in TOOL_VOCAB if word in text and word not in allowed]
     assert not hits, f"lookup_candidate's description contains policy vocabulary: {hits}"
+
+
+# --- the typed contract, and what the caller is shown of it ------------------
+
+#: The top-level shape of LookupResult, spelled out here rather than derived
+#: from the model. Deriving it would make this test agree with any rename by
+#: construction, which is the failure issue #17 is about.
+EXPECTED_TOP_LEVEL: frozenset[str] = frozenset(
+    {"candidates", "count", "unconfirmed", "asked_for", "probes", "execution", "note"}
+)
+
+#: A generous ceiling on the display line. The point is the order of magnitude:
+#: a summary is tens of bytes and the payload it summarises is thousands, so a
+#: regression that starts serialising the result into the display channel
+#: overshoots this by a factor of ten, not by a word or two.
+MAX_DISPLAY_BYTES = 120
+
+
+async def test_the_result_publishes_an_output_schema():
+    """Returning `ToolResult` alone publishes no output schema at all - the
+    caller gets back an untyped blob and FastMCP validates nothing, which is
+    the state issue #17 exists to end. The schema is passed explicitly for
+    exactly that reason, so its absence has to fail loudly here."""
+
+    def handler(request):
+        return httpx2.Response(200, json={})
+
+    async with Client(build(handler)) as client:
+        tools = {t.name: t for t in await client.list_tools()}
+
+    schema = tools["lookup_candidate"].output_schema
+    assert schema is not None, "no output schema published: was output_schema= dropped?"
+    assert schema["type"] == "object", (
+        "the result must be an object at the root, not a wrapped scalar: a caller "
+        "reads `execution.truncated` by name, not by position"
+    )
+    assert set(schema["properties"]) == EXPECTED_TOP_LEVEL
+
+    execution = schema["properties"]["execution"]["properties"]
+    assert {"requests_used", "rate_limit", "truncated", "errors"} <= set(execution), (
+        "the shared ExecutionFacts fields must survive into the published schema; "
+        "without them a caller cannot tell a complete answer from a stopped one"
+    )
+    row = schema["properties"]["candidates"]["items"]["properties"]
+    assert {"candidate_id", "matched_fields", "evidence", "found_by"} <= set(row)
+
+
+async def test_the_display_content_summarises_rather_than_repeats_the_result():
+    """The failure this guards is the one that made #17 worth filing: returning
+    the model directly gets the whole payload serialised into the display
+    channel as well, so every caller pays for it twice and a human reading the
+    transcript sees a wall of JSON instead of an answer."""
+
+    def handler(request):
+        path = request.url.path
+        if path.endswith("/candidates/search"):
+            return httpx2.Response(200, json=collection([candidate(1), candidate(2)]))
+        return httpx2.Response(
+            200, json=candidate(1, emails=["pat@example.com"], phones=["250-555-0111"])
+        )
+
+    async with Client(build(handler)) as client:
+        result = await client.call_tool("lookup_candidate", {"emails": ["pat@example.com"]})
+
+    assert len(result.content) == 1
+    text = result.content[0].text
+    assert len(text.encode()) <= MAX_DISPLAY_BYTES, f"display content is not a summary: {text!r}"
+
+    payload = len(json.dumps(result.structured_content).encode())
+    assert len(text.encode()) * 10 < payload, (
+        f"display content is {len(text.encode())} bytes against a {payload}-byte "
+        f"payload - close enough to suggest the result is being repeated into it"
+    )
+    for token in ("matched_fields", "evidence", "candidate_id", "{", "["):
+        assert token not in text, f"the payload is leaking into the display line: {text!r}"
+
+
+async def test_the_display_content_carries_no_contact_detail():
+    """Issue #21: the display channel is shown separately from the structured
+    result, cached and logged differently, and read by anyone with the
+    transcript. A name, an address or a number in it is a disclosure the caller
+    never asked for - and this tool is handed all three on every call."""
+
+    def handler(request):
+        path = request.url.path
+        if path.endswith("/candidates/search"):
+            return httpx2.Response(200, json=collection([candidate(1, last="Lee")]))
+        return httpx2.Response(
+            200,
+            json=candidate(
+                1,
+                first="Pat",
+                last="Lee",
+                emails=["pat@example.com"],
+                phones=["250-555-0111"],
+                linkedin_url="https://www.linkedin.com/in/pat-lee/",
+            ),
+        )
+
+    async with Client(build(handler)) as client:
+        result = await client.call_tool(
+            "lookup_candidate",
+            {
+                "emails": ["pat@example.com"],
+                "phones": ["250-555-0111"],
+                "names": ["Pat Lee"],
+                "profile_urls": ["https://www.linkedin.com/in/pat-lee/"],
+            },
+        )
+
+    text = result.content[0].text.lower()
+    leaked = [
+        secret
+        for secret in (
+            "pat",
+            "lee",
+            "example.com",
+            "250-555-0111",
+            "2505550111",
+            "555",
+            "linkedin",
+            "kamloops",
+        )
+        if secret in text
+    ]
+    assert not leaked, f"display content carries contact detail {leaked}: {text!r}"
+    # It still has to say something useful, or it is not a summary either.
+    assert "1 confirmed" in text and "requests" in text

@@ -77,6 +77,50 @@ def test_the_assignee_is_required_on_create():
 # --- and the request body actually carries it -------------------------------
 
 
+async def test_create_task_sends_the_shape_cats_actually_accepts():
+    """Every mapping below was established by creating real tasks against the
+    live account and deleting them again. Each wrong one failed differently:
+
+      due_date     -> accepted with 201, then silently dropped. No due date on
+                      the record and nothing said so.
+      candidate_id -> 500. A task attaches through data_item, and omitting the
+                      association entirely is also a 500, so it is required.
+      title        -> accepted, discarded, absent from the stored record. CATS
+                      tasks have no title; description is the content.
+    """
+    sent: dict[str, object] = {}
+
+    def handler(request):
+        if request.url.path.endswith("/tasks") and request.method == "POST":
+            sent.update(json.loads(request.content))
+            return httpx2.Response(201, json={"id": 999})
+        return httpx2.Response(200, json={})
+
+    async with Client(build(handler)) as client:
+        await client.call_tool(
+            "create_task",
+            {
+                "description": "Follow up",
+                "assigned_to": 595874,
+                "candidate_id": 401138551,
+                "due_date": "2026-09-01",
+            },
+        )
+
+    assert sent.get("date_due") == "2026-09-01", f"due date must go as date_due: {sent}"
+    assert "due_date" not in sent, "due_date is accepted and silently dropped by CATS"
+    assert sent.get("data_item") == {"id": 401138551, "type": "candidate"}, sent
+    assert "candidate_id" not in sent, "candidate_id as a scalar is a 500"
+    assert "title" not in sent, "CATS tasks have no title field"
+
+
+def test_description_and_candidate_are_required_on_create():
+    """CATS answers 'description must not be empty' without one, and 500s
+    without an association. Optional here would only defer both to runtime."""
+    assert _param("create_task", "description").required
+    assert _param("create_task", "candidate_id").required
+
+
 async def test_create_task_sends_assigned_to_id_and_priority_on_the_wire():
     sent: dict[str, object] = {}
 
@@ -90,10 +134,9 @@ async def test_create_task_sends_assigned_to_id_and_priority_on_the_wire():
         await client.call_tool(
             "create_task",
             {
-                "title": "Follow up",
+                "description": "Follow up",
                 "assigned_to": 595874,
                 "candidate_id": 401138551,
-                "description": "…",
             },
         )
 

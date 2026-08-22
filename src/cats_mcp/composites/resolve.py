@@ -43,8 +43,10 @@ import re
 from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
+from fastmcp.tools import ToolResult
 from pydantic import BaseModel, Field
 
+from cats_mcp.composites.models import ExecutionFacts, MatchEvidence, RateLimit
 from cats_mcp.composites.reads import (
     _dedupe,
     _embedded_rows,
@@ -169,6 +171,114 @@ class TextPredicate(BaseModel):
             )
         ),
     ] = "contains"
+
+
+class SeedUsed(BaseModel):
+    """One `exactly` filter the pool sweep was narrowed by.
+
+    Reported back because the pool is the universe this answer was computed
+    over: a caller who cannot see that the sweep was seeded to two statuses
+    cannot tell "no other Artemis job exists" from "no other Artemis job has
+    those statuses".
+    """
+
+    field: str = Field(description="The CATS job field the filter was applied to.")
+    value: int | str | None = Field(
+        default=None, description="The exact value filtered on, as the caller gave it."
+    )
+
+
+class ResolvedJob(BaseModel):
+    """One job the reference could mean, with the evidence for it.
+
+    There is deliberately nowhere in this model to record how *well* the job
+    matched. The fields are the record's own identifiers plus `matched_fields`;
+    ordering carries no meaning and the first row is not a nomination. Adding a
+    closeness measure here would turn every caller's "return them all" into
+    "take the top one", which is the failure this tool exists to prevent.
+    """
+
+    job_id: int | str | None = Field(default=None, description="The CATS job id.")
+    title: str | None = Field(default=None, description="The job title as CATS stores it.")
+    status_id: int | str | None = Field(default=None, description="The job's status id.")
+    city: str | None = Field(default=None, description="City on the job record.")
+    state: str | None = Field(default=None, description="State or province on the job record.")
+    company_id: int | str | None = Field(default=None, description="The client company's id.")
+    owner_id: int | str | None = Field(default=None, description="The owning user's id.")
+    date_modified: str | None = Field(default=None, description="When CATS last changed the job.")
+    company: str | None = Field(
+        default=None, description="The client company name, from the row or its _embedded company."
+    )
+    matched_fields: list[MatchEvidence] = Field(
+        default_factory=list,
+        description=(
+            "Why this job is here: at least one field that matched, with the stored "
+            "value. Not necessarily every field that would have matched - once a free "
+            "field finds a job, no per-job request is spent collecting more."
+        ),
+    )
+
+
+class ResolveResult(BaseModel):
+    """Every job the reference could mean, and what the sweep actually covered.
+
+
+    The counts are not decoration. `total_matched` against `count` says whether
+    rows were left out; `ambiguous` says the reference named more than one
+    record; `scanned` and `unsearched` say how much of the account the answer
+    was computed over. A caller that cannot read those cannot tell a complete
+    answer from a confident partial one.
+    """
+
+    jobs: list[ResolvedJob] = Field(
+        default_factory=list,
+        description="Every job that matched, in the order CATS returned it. That "
+        "order means nothing.",
+    )
+    count: int = Field(description="Jobs in `jobs`. Compare with total_matched.")
+    ambiguous: bool = Field(
+        description=(
+            "True when more than one record answered to the reference. A derived "
+            "fact, not an opinion: the caller asked for 'the Artemis job' and there "
+            "are three."
+        )
+    )
+    total_matched: int = Field(
+        description="How many jobs matched in total, even when max_jobs capped `jobs`."
+    )
+    scanned: int = Field(description="Job rows the pool sweep actually read.")
+    fields_searched: list[str] = Field(
+        default_factory=list, description="The fields this call looked in."
+    )
+    seeds_used: list[SeedUsed] = Field(
+        default_factory=list, description="The exact filters the pool was narrowed by, if any."
+    )
+    unsearched: dict[str, int] = Field(
+        default_factory=dict,
+        description=(
+            "Per field, how many unmatched jobs the budget never looked at. These are "
+            "unknown, not misses - a non-zero count means this answer may be short a "
+            "record."
+        ),
+    )
+    execution: ExecutionFacts = Field(
+        description="What the call spent and what it could not finish."
+    )
+    note: str = Field(description="How to read this result.")
+
+
+#: Prose returned with every result. Kept out of the display content, which
+#: stays a counts-only line - see `_content_line`.
+RESULT_NOTE = (
+    "Every record that matched is returned, in the order CATS returned them - "
+    "that order means nothing and the first row is not a nomination. "
+    "`matched_fields` is the evidence for each; interpreting it is the "
+    "caller's job. It names at least one field that matched, not necessarily "
+    "every one: once a job is found by a free field, no per-job request is "
+    "spent on it to collect more. `unsearched` counts jobs the budget never "
+    "looked at for a given field - those are unknown, not misses, and a "
+    "non-zero count means this answer may be short a record."
+)
 
 
 def _normalise(value: Any) -> str:
@@ -353,6 +463,12 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
 
     @mcp.tool(
         name="resolve_job",
+        # Passed explicitly because the function returns ToolResult, which on its
+        # own leaves the tool with no output schema at all. Declaring it here is
+        # what gives the caller a typed, object-rooted contract while the display
+        # content stays a single counts line instead of a second copy of the
+        # payload.
+        output_schema=ResolveResult.model_json_schema(),
         description=(
             "Resolve a job reference - 'the Artemis job', a site name, a client, an "
             "id - to every CATS job it could plausibly mean, with the evidence for "
@@ -370,9 +486,9 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             "Cost: title, company, location, owner and description are free - they "
             "ride along on rows already fetched. Custom fields and tags are one CATS "
             "request per job, so they are read only for jobs no free field matched, "
-            "and only as far as max_requests allows. `requests_used` says what was "
-            "spent and `unsearched` counts the jobs the budget never looked at - an "
-            "unreached job is unknown, not a job that failed to match.\n\n"
+            "and only as far as max_requests allows. `execution.requests_used` says "
+            "what was spent and `unsearched` counts the jobs the budget never looked "
+            "at - an unreached job is unknown, not a job that failed to match.\n\n"
             "Pass job_id instead when you already have one; that is a single direct "
             "read and no sweep happens."
         ),
@@ -461,7 +577,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 ),
             ),
         ] = DEFAULT_MAX_REQUESTS,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         set_run_id()
         client = client_getter()
 
@@ -492,7 +608,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
         # query - a list of rows with evidence - so a caller never has to branch
         # on which way it was asked.
         if job_id is not None:
-            rows: list[dict[str, Any]] = []
+            rows: list[ResolvedJob] = []
             try:
                 record = await client.request("GET", f"/jobs/{job_id}")
                 requests_used += 1
@@ -505,13 +621,13 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                     _output_row(
                         record,
                         [
-                            {
-                                "field": "job_id",
-                                "source": "id",
-                                "value": str(record.get("id", job_id)),
-                                "matched": str(job_id),
-                                "mode": "exact",
-                            }
+                            MatchEvidence(
+                                field="job_id",
+                                source="id",
+                                value=str(record.get("id", job_id)),
+                                matched=str(job_id),
+                                mode="exact",
+                            )
                         ],
                     )
                 )
@@ -522,7 +638,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 total_matched=len(rows),
                 scanned=len(rows),
                 fields_searched=["job_id"],
-                seeds_used=[{"field": "id", "value": job_id}],
+                seeds_used=[SeedUsed(field="id", value=job_id)],
                 unsearched={},
                 truncated=False,
                 errors=errors,
@@ -587,7 +703,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
 
         # --- Phase B: the free fields, on rows already in hand ---------------
         free_wanted = [f for f in FREE_FIELDS if f in wanted]
-        evidence: dict[str, list[dict[str, Any]]] = {}
+        evidence: dict[str, list[MatchEvidence]] = {}
         for key, row in pool.items():
             for field in free_wanted:
                 for source, text in _row_texts(row, field):
@@ -662,7 +778,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             total_matched=total_matched,
             scanned=scanned,
             fields_searched=wanted,
-            seeds_used=[{"field": f, "value": v} for f, v in plan],
+            seeds_used=[SeedUsed(field=f, value=v) for f, v in plan],
             unsearched=unsearched,
             truncated=truncated,
             errors=errors,
@@ -673,7 +789,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
 
 
 def _add_evidence(
-    bucket: list[dict[str, Any]],
+    bucket: list[MatchEvidence],
     field: str,
     source: str,
     text: str,
@@ -681,65 +797,105 @@ def _add_evidence(
     predicate: TextPredicate,
 ) -> None:
     """Record one match, without repeating an identical one."""
-    entry = {
-        "field": field,
-        "source": source,
-        "value": _snippet(text, hit),
-        "matched": hit,
-        "mode": predicate.mode,
-    }
+    entry = MatchEvidence(
+        field=field,
+        source=source,
+        value=_snippet(text, hit),
+        matched=hit,
+        mode=predicate.mode,
+    )
     if entry not in bucket:
         bucket.append(entry)
 
 
-def _output_row(record: dict[str, Any], evidence: list[dict[str, Any]]) -> dict[str, Any]:
+def _as_text(value: Any) -> str | None:
+    """A stored value as display text, or None. Never raises on an odd shape.
+
+    CATS is account-shaped: a field this adapter expects to be a string can
+    arrive as a number on somebody's account. Coercing here keeps that from
+    turning a resolvable reference into a validation error on the way out.
+    """
+    if value is None or isinstance(value, str):
+        return value
+    return str(value)
+
+
+def _output_row(record: dict[str, Any], evidence: list[MatchEvidence]) -> ResolvedJob:
     projected = _project(record, OUTPUT_FIELDS)
-    row: dict[str, Any] = {"job_id": record.get("id")}
-    row.update({k: v for k, v in projected.items() if k != "id"})
-    company = _company_name(record)
-    if company is not None:
-        row["company"] = company
-    row["matched_fields"] = evidence
-    return row
+    return ResolvedJob(
+        job_id=record.get("id"),
+        title=_as_text(projected.get("title")),
+        status_id=projected.get("status_id"),
+        city=_as_text(projected.get("city")),
+        state=_as_text(projected.get("state")),
+        company_id=projected.get("company_id"),
+        owner_id=projected.get("owner_id"),
+        date_modified=_as_text(projected.get("date_modified")),
+        company=_company_name(record),
+        matched_fields=evidence,
+    )
+
+
+def _content_line(result: ResolveResult) -> str:
+    """The one line a human sees. Counts and flags, never record data.
+
+    The structured payload is the answer; repeating it here would double the
+    tokens for nothing, and putting a job title or a client name in it would
+    hand a reader the first row as though it were the pick.
+    """
+    parts = [
+        f"matched {result.total_matched}",
+        f"returned {result.count}",
+        f"scanned {result.scanned}",
+        f"requests {result.execution.requests_used}",
+    ]
+    if result.ambiguous:
+        parts.append("ambiguous")
+    if result.execution.truncated:
+        parts.append("truncated")
+    if result.unsearched:
+        parts.append(f"unsearched {sum(result.unsearched.values())}")
+    if result.execution.errors:
+        parts.append(f"errors {len(result.execution.errors)}")
+    return ", ".join(parts)
 
 
 def _result(
     client: Any,
     *,
-    rows: list[dict[str, Any]],
+    rows: list[ResolvedJob],
     total_matched: int,
     scanned: int,
     fields_searched: list[str],
-    seeds_used: list[dict[str, Any]],
+    seeds_used: list[SeedUsed],
     unsearched: dict[str, int],
     truncated: bool,
     errors: dict[str, str],
     requests_used: int,
-) -> dict[str, Any]:
+) -> ToolResult:
     """One shape for both paths, so a caller never branches on how it asked."""
-    return {
-        "jobs": rows,
-        "count": len(rows),
+    result = ResolveResult(
+        jobs=rows,
+        count=len(rows),
         # A derived fact, not an opinion: more than one record answered to the
         # reference. The caller asked for "the Artemis job" and there are three.
-        "ambiguous": total_matched > 1,
-        "total_matched": total_matched,
-        "scanned": scanned,
-        "fields_searched": fields_searched,
-        "seeds_used": seeds_used,
-        "unsearched": unsearched,
-        "truncated": truncated,
-        "errors": errors,
-        "requests_used": requests_used,
-        "rate_limit": client.rate_limit.snapshot(),
-        "note": (
-            "Every record that matched is returned, in the order CATS returned them - "
-            "that order means nothing and the first row is not a nomination. "
-            "`matched_fields` is the evidence for each; interpreting it is the "
-            "caller's job. It names at least one field that matched, not necessarily "
-            "every one: once a job is found by a free field, no per-job request is "
-            "spent on it to collect more. `unsearched` counts jobs the budget never "
-            "looked at for a given field - those are unknown, not misses, and a "
-            "non-zero count means this answer may be short a record."
+        ambiguous=total_matched > 1,
+        total_matched=total_matched,
+        scanned=scanned,
+        fields_searched=fields_searched,
+        seeds_used=seeds_used,
+        unsearched=unsearched,
+        execution=ExecutionFacts(
+            requests_used=requests_used,
+            rate_limit=RateLimit.model_validate(client.rate_limit.snapshot()),
+            truncated=truncated,
+            # This sweep has no resumable cursor: the pool is rebuilt from the
+            # seeds each call, so there is no position to hand back. Null here
+            # means "no continuation exists", and `unsearched` is what says the
+            # answer may be short a record.
+            next_cursor=None,
+            errors=errors,
         ),
-    }
+        note=RESULT_NOTE,
+    )
+    return ToolResult(content=_content_line(result), structured_content=result.model_dump())

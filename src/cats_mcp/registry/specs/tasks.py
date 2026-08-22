@@ -76,32 +76,41 @@ SPECS: list[ToolSpec] = [
         response=ResponseStrategy.RAW,
         toolset="tasks",
         params=(
+            # A CATS task has no title field. It was accepted, silently
+            # discarded, and never appeared on the stored record - so the one
+            # thing a caller most expects to survive was the one thing thrown
+            # away. `description` is the task's content, and CATS requires it
+            # ("description must not be empty"). Verified live; see issue #15.
             Param(
-                name="title",
+                name="description",
                 annotation=str,
-                description="Task title",
+                description="What the task says. Required by CATS; this is the task's text.",
                 location=ParamLocation.BODY,
             ),
+            # CATS stores the due date as date_due. Sent as due_date it was
+            # accepted with a 201 and then silently dropped - the task existed
+            # with no due date and nothing said so. That is the worst shape a
+            # bug can take here, and it is why this mapping is tested against
+            # the outgoing body rather than the spec.
             Param(
                 name="due_date",
                 annotation=str | None,
-                description="Due date in ISO format (optional)",
+                description="Due date, ISO format (YYYY-MM-DD). Optional.",
                 location=ParamLocation.BODY,
+                wire_name="date_due",
                 default=None,
             ),
+            # Required, and not a scalar field. A task attaches to a record
+            # through data_item; sending candidate_id produced a 500, and so
+            # did omitting the association entirely. The transform builds the
+            # object so callers keep passing an id.
             Param(
                 name="candidate_id",
-                annotation=int | None,
-                description="Associated candidate ID (optional)",
+                annotation=int,
+                description="Candidate the task is about. Required by CATS.",
                 location=ParamLocation.BODY,
-                default=None,
-            ),
-            Param(
-                name="job_id",
-                annotation=int | None,
-                description="Associated job ID (optional)",
-                location=ParamLocation.BODY,
-                default=None,
+                wire_name="data_item",
+                transform=Transform.TO_CANDIDATE_DATA_ITEM,
             ),
             # CATS names this assigned_to_id on the wire. Without the mapping the
             # body carried "assigned_to", the required field arrived empty, and
@@ -137,13 +146,6 @@ SPECS: list[ToolSpec] = [
                 ),
                 location=ParamLocation.BODY,
                 default=5,
-            ),
-            Param(
-                name="description",
-                annotation=str | None,
-                description="Task description (optional)",
-                location=ParamLocation.BODY,
-                default=None,
             ),
         ),
     ),

@@ -153,9 +153,36 @@ INJECTED_PAGINATION_PARAMS = {"page", "per_page"}
 #: Advertising a parameter that does nothing is worse than not having it: the
 #: caller believes the contact details were saved. create_candidate_email and
 #: create_candidate_phone are the paths that work.
+#: Tools whose body shape changed because the old one did not work.
+#:
+#: create_task failed on every call: the assignee went out under a name CATS
+#: does not read, `priority` and `description` were required but one was
+#: missing from the spec and the other optional, `due_date` was accepted and
+#: silently dropped, and `candidate_id` was a 500 because a task attaches
+#: through `data_item`. There was no working contract to preserve, so the
+#: baseline is not the thing to protect here.
+#:
+#: The replacement contract is asserted directly against the outgoing request
+#: body in tests/test_task_schema.py, which is a stronger check than a schema
+#: snapshot: it is the wire names, not the parameter names, that were wrong.
+#: update_task only gained the assigned_to_id mapping and a clearer
+#: description; its parameters are otherwise unchanged.
+INTENTIONALLY_RESHAPED = {"create_task", "update_task"}
+
+
 INTENTIONALLY_REMOVED_PARAMS: dict[str, set[str]] = {
     "create_candidate": {"email", "phone"},
     "update_candidate": {"email", "phone"},
+    #: create_task offered two parameters CATS has no field for. `title` was
+    #: accepted, silently discarded, and absent from the stored record - the
+    #: one thing a caller most expects to survive was the one thing thrown
+    #: away. `job_id` could not be verified at all: data_item rejected type
+    #: "joborder", so no working spelling for a job association is known and
+    #: offering the parameter would only promise something untested.
+    #:
+    #: Both established by creating real tasks against the live account and
+    #: deleting them again. See issue #15.
+    "create_task": {"title", "job_id"},
 }
 
 
@@ -206,7 +233,7 @@ async def test_schemas_keep_their_contract(registered_tools, expected):
     Descriptions and the injected shaping parameters are excluded - both are
     deliberate improvements, covered by their own tests below.
     """
-    checked = set(expected) & set(registered_tools)
+    checked = (set(expected) & set(registered_tools)) - INTENTIONALLY_RESHAPED
     differences = [
         name
         for name in sorted(checked)
@@ -221,6 +248,8 @@ async def test_untouched_tools_are_still_byte_identical(registered_tools, expect
     unchanged = []
     for name in sorted(set(expected) & set(registered_tools)):
         if name in INTENTIONALLY_REWORDED or name in INTENTIONALLY_REMOVED_PARAMS:
+            continue
+        if name in INTENTIONALLY_RESHAPED:
             continue
         if _injected(name):
             continue  # gained shaping or pagination params, checked separately

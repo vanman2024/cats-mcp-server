@@ -54,8 +54,10 @@ import re
 from collections.abc import Callable
 from typing import Annotated, Any
 
-from pydantic import Field
+from fastmcp.tools import ToolResult
+from pydantic import BaseModel, ConfigDict, Field
 
+from cats_mcp.composites.models import ExecutionFacts, MatchEvidence, RateLimit
 from cats_mcp.composites.reads import (
     _dedupe,
     _embedded_rows,
@@ -276,6 +278,158 @@ def _probe_forms(kind: str, value: str) -> list[str]:
     return forms
 
 
+# --- the result contract ----------------------------------------------------
+#
+# Issue #17: `dict[str, Any]` gave FastMCP nothing to publish as an output
+# schema and nothing to validate against, so a key could be renamed or quietly
+# stop being emitted and every test here would still pass. The models below are
+# that contract written down. Only the rows are local: how the call reports on
+# itself lives in composites/models.py, shared with every other composite,
+# because "what did this spend and what did it not finish" is the same question
+# whatever the tool was asked.
+
+
+class FoundBy(BaseModel):
+    """What surfaced a record, before anything about it was confirmed.
+
+    Deliberately not the same thing as a match. CATS decides what to surface,
+    this decides what counts, and keeping the two as separate fields is what
+    lets a caller see that a row was returned for a reason that did not hold up.
+    """
+
+    field: str = Field(description="The identity kind that surfaced the row, or 'candidate_id'.")
+    value: str = Field(description="The value asked for, as the caller spelled it.")
+
+
+class LookupEvidence(MatchEvidence):
+    """Shared match evidence, plus the folded string both sides were compared as.
+
+    `mode` is 'exact' for an id the caller already had and 'normalized' for a
+    value that survived case, punctuation or country-code folding. `normalized`
+    quotes that folded string, so a caller can see exactly what equality was
+    tested rather than taking the match on trust.
+    """
+
+    normalized: str | None = Field(
+        default=None,
+        description="The folded form both sides were compared as, e.g. '2505550111'.",
+    )
+
+
+class ProbeReport(BaseModel):
+    """One request CATS was asked to answer, and how many rows came back.
+
+    `rows` is null when the probe was rejected; the reason is in
+    `execution.errors` under the same field and value. Null here means the
+    question was never answered, which is not the same as answered with none.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    field: str = Field(description="The CATS field probed, after any override.")
+    value: str = Field(description="The spelling asked for on that field.")
+    for_: str = Field(
+        alias="for",
+        description="The identity kind this probe was looking for.",
+    )
+    rows: int | None = Field(
+        default=None, description="Rows the probe returned, or null if it was rejected."
+    )
+
+
+class AskedFor(BaseModel):
+    """The identities this call was given, after trimming and de-duplication.
+
+    Echoed back because a lookup is usually one leg of a longer job: without it
+    a caller reading the result later cannot tell an empty answer from a
+    question that was never asked.
+    """
+
+    candidate_ids: list[int | str] = Field(
+        default_factory=list, description="Ids read directly, one request each."
+    )
+    email: list[str] = Field(default_factory=list, description="Email addresses asked for.")
+    phone: list[str] = Field(default_factory=list, description="Phone numbers asked for.")
+    name: list[str] = Field(default_factory=list, description="Whole names asked for.")
+    profile_url: list[str] = Field(default_factory=list, description="Profile URLs asked for.")
+
+
+class UnconfirmedRow(BaseModel):
+    """A record CATS surfaced whose stored values did not survive the check.
+
+    Reported rather than dropped: a row that CATS returned and this did not
+    confirm is a fact about the account - a near-miss spelling, or a record the
+    budget could not read - and silently discarding it would look identical to
+    that record not existing.
+    """
+
+    candidate_id: int | str = Field(description="The record CATS surfaced.")
+    found_by: list[FoundBy] = Field(
+        default_factory=list, description="What surfaced it, before confirmation."
+    )
+    reason: str = Field(description="Why it was not confirmed: no equal value, or not read.")
+
+
+class LookupRow(BaseModel):
+    """One candidate record carrying an identity that was asked about.
+
+    Enough of the record to tell two of them apart by eye, and then the whole
+    of why it is here. What it means - which record is the one to keep, whether
+    they are the same person - is not decided here and has no field for it.
+    """
+
+    candidate_id: int | str = Field(description="The CATS candidate id.")
+    name: str | None = Field(default=None, description="The record's name, as stored.")
+    title: str | None = Field(default=None, description="Current title on the record.")
+    city: str | None = Field(default=None, description="City on the record.")
+    state: str | None = Field(default=None, description="State or province on the record.")
+    date_created: str | None = Field(default=None, description="When the record was created.")
+    date_modified: str | None = Field(default=None, description="When it last changed.")
+    emails: list[str] = Field(
+        default_factory=list, description="Email addresses read for this record."
+    )
+    phones: list[str] = Field(
+        default_factory=list, description="Phone numbers read for this record."
+    )
+    profile_urls: list[str] = Field(
+        default_factory=list, description="Profile URLs read for this record."
+    )
+    matched_fields: list[str] = Field(
+        default_factory=list,
+        description="Identity kinds that held up against the stored values.",
+    )
+    evidence: list[LookupEvidence] = Field(
+        default_factory=list, description="Both sides of every match, and where it was read."
+    )
+    found_by: list[FoundBy] = Field(
+        default_factory=list, description="What surfaced the row in the first place."
+    )
+    read_from: str = Field(description="'candidate record' or 'search row'.")
+
+
+class LookupResult(BaseModel):
+    """Everything one identity lookup found, and what the answer cost.
+
+    `count` counts confirmed records only. A caller that needs to know whether
+    that is the whole answer reads `execution.truncated` and
+    `execution.errors`, not the length of the list.
+    """
+
+    candidates: list[LookupRow] = Field(
+        default_factory=list, description="Records confirmed to carry an identity asked about."
+    )
+    count: int = Field(description="How many confirmed records are listed above.")
+    unconfirmed: list[UnconfirmedRow] = Field(
+        default_factory=list, description="Rows CATS surfaced that did not survive the check."
+    )
+    asked_for: AskedFor = Field(description="The identities this call was given.")
+    probes: list[ProbeReport] = Field(
+        default_factory=list, description="Every search request made, and what it returned."
+    )
+    execution: ExecutionFacts = Field(description="What the call spent and could not finish.")
+    note: str = Field(description="What the result does and does not say.")
+
+
 def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) -> int:
     """Register the identity lookup primitive. Returns how many were added."""
     tool_kwargs: dict[str, Any] = {}
@@ -286,6 +440,12 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
 
     @mcp.tool(
         name="lookup_candidate",
+        # Passed explicitly, and it has to be. Annotating the return as
+        # ToolResult publishes no output schema at all; returning the model
+        # itself publishes one but then repeats the whole payload as display
+        # text, which is the duplication issue #17 is about. This gives the
+        # caller an object-rooted schema and a one-line summary.
+        output_schema=LookupResult.model_json_schema(),
         description=(
             "Find every candidate record carrying a given identity - an id, an email "
             "address, a phone number, a name, or a profile URL - and report which of "
@@ -308,7 +468,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             "an email address; it does not say which of them is the one to keep, and it "
             "changes nothing.\n\n"
             "Budgeted: max_requests caps what one call may spend against the hourly "
-            "allowance, and requests_used reports what it actually cost."
+            "allowance, and execution.requests_used reports what it actually cost."
         ),
         tags={"ats", "candidate", "read", "search"},
         annotations={
@@ -393,7 +553,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 ),
             ),
         ] = DEFAULT_MAX_REQUESTS,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         set_run_id()
         client = client_getter()
 
@@ -476,7 +636,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                     asked.add(key)
                     plan.append((kind, str(value), fields[kind], form))
 
-        probes: list[dict[str, Any]] = []
+        probes: list[ProbeReport] = []
         for index, (kind, value, field, form) in enumerate(plan):
             if requests_used >= max_requests:
                 truncated = True
@@ -496,11 +656,11 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 requests_used += 1
             except CATSAPIError as exc:
                 errors[f"probe:{field}={form}"] = str(exc)
-                probes.append({"field": field, "value": form, "for": kind, "rows": None})
+                probes.append(ProbeReport(field=field, value=form, for_=kind, rows=None))
                 continue
 
             rows = _embedded_rows(payload)
-            probes.append({"field": field, "value": form, "for": kind, "rows": len(rows)})
+            probes.append(ProbeReport(field=field, value=form, for_=kind, rows=len(rows)))
             if _has_next_page(payload):
                 truncated = True
                 errors[f"probe:{field}={form}"] = (
@@ -571,8 +731,8 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 extra[key][kind] = _flatten(_embedded_rows(payload), value_keys)
 
         # --- confirm, and say what the confirmation rested on ----------------
-        rows_out: list[dict[str, Any]] = []
-        unconfirmed: list[dict[str, Any]] = []
+        rows_out: list[LookupRow] = []
+        unconfirmed: list[UnconfirmedRow] = []
 
         for cid, entry in sorted(found.items(), key=lambda item: str(item[0])):
             record = entry["record"]
@@ -594,19 +754,21 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 ],
             }
 
+            found_by = [FoundBy(**hit) for hit in entry["found_by"]]
             matched_fields: list[str] = []
-            evidence: list[dict[str, Any]] = []
+            evidence: list[LookupEvidence] = []
 
             if any(f["field"] == "candidate_id" for f in entry["found_by"]):
                 matched_fields.append("candidate_id")
                 evidence.append(
-                    {
-                        "field": "candidate_id",
-                        "asked_for": cid,
-                        "stored": record.get("id", cid),
-                        "normalized": str(cid),
-                        "read_from": "candidate record",
-                    }
+                    LookupEvidence(
+                        field="candidate_id",
+                        matched=str(cid),
+                        value=str(record.get("id", cid)),
+                        normalized=str(cid),
+                        source="candidate record",
+                        mode="exact",
+                    )
                 )
 
             for kind, wanted in targets.items():
@@ -619,59 +781,65 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                     if kind not in matched_fields:
                         matched_fields.append(kind)
                     evidence.append(
-                        {
-                            "field": kind,
-                            "asked_for": wanted[normalized],
-                            "stored": value,
-                            "normalized": normalized,
-                            "read_from": read_from,
-                        }
+                        LookupEvidence(
+                            field=kind,
+                            matched=wanted[normalized],
+                            value=value,
+                            normalized=normalized,
+                            source=read_from,
+                            mode="normalized",
+                        )
                     )
 
             if not matched_fields:
                 unconfirmed.append(
-                    {
-                        "candidate_id": record.get("id", cid),
-                        "found_by": entry["found_by"],
-                        "reason": (
+                    UnconfirmedRow(
+                        candidate_id=record.get("id", cid),
+                        found_by=found_by,
+                        reason=(
                             "the record holds no value equal to any identity asked for, "
                             "once normalized"
                             if entry["record"] is not None
                             else "the full record could not be read within the request "
                             "budget, so only its search row was checked"
                         ),
-                    }
+                    )
                 )
                 continue
 
-            out: dict[str, Any] = {
-                "candidate_id": record.get("id", cid),
-                "name": (_record_names(record) or [None])[0],
-            }
-            out.update(_project(record, RECORD_FIELDS))
-            out["emails"] = _dedupe([v for v, _ in stored["email"]])
-            out["phones"] = _dedupe([v for v, _ in stored["phone"]])
-            out["profile_urls"] = _dedupe([v for v, _ in stored["profile_url"]])
-            out["matched_fields"] = matched_fields
-            out["evidence"] = evidence
-            out["found_by"] = entry["found_by"]
-            out["read_from"] = source
-            rows_out.append(out)
+            projected = _project(record, RECORD_FIELDS)
+            rows_out.append(
+                LookupRow(
+                    candidate_id=record.get("id", cid),
+                    name=(_record_names(record) or [None])[0],
+                    title=projected.get("title"),
+                    city=projected.get("city"),
+                    state=projected.get("state"),
+                    date_created=projected.get("date_created"),
+                    date_modified=projected.get("date_modified"),
+                    emails=_dedupe([v for v, _ in stored["email"]]),
+                    phones=_dedupe([v for v, _ in stored["phone"]]),
+                    profile_urls=_dedupe([v for v, _ in stored["profile_url"]]),
+                    matched_fields=matched_fields,
+                    evidence=evidence,
+                    found_by=found_by,
+                    read_from=source,
+                )
+            )
 
-        return {
-            "candidates": rows_out,
-            "count": len(rows_out),
-            "unconfirmed": unconfirmed,
-            "asked_for": {
-                **({"candidate_ids": wanted_ids} if wanted_ids else {}),
-                **{kind: values for kind, values in criteria.items() if values},
-            },
-            "probes": probes,
-            "truncated": truncated,
-            "errors": errors,
-            "requests_used": requests_used,
-            "rate_limit": client.rate_limit.snapshot(),
-            "note": (
+        result = LookupResult(
+            candidates=rows_out,
+            count=len(rows_out),
+            unconfirmed=unconfirmed,
+            asked_for=AskedFor(candidate_ids=wanted_ids, **criteria),
+            probes=probes,
+            execution=ExecutionFacts(
+                requests_used=requests_used,
+                rate_limit=RateLimit(**client.rate_limit.snapshot()),
+                truncated=truncated,
+                errors=errors,
+            ),
+            note=(
                 "Ordered by candidate id, which is record order and nothing more. "
                 "`matched_fields` names the fields that matched and `evidence` quotes "
                 "both sides of each one; what that means about these records is the "
@@ -679,9 +847,20 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 "more than one record carrying an identity you asked about - it does "
                 "not mean anything has been changed, and nothing has. `unconfirmed` "
                 "lists records CATS surfaced whose stored values did not survive the "
-                "normalized check, and a non-empty `errors` means part of the question "
-                "went unanswered rather than answered in the negative."
+                "normalized check, and a non-empty `execution.errors` means part of "
+                "the question went unanswered rather than answered in the negative."
             ),
-        }
+        )
+
+        # Display content is a summary, not a second copy of the payload: the
+        # structured result is carried separately, and issue #21 keeps names,
+        # addresses and numbers out of every channel that is not it.
+        summary = (
+            f"{len(rows_out)} confirmed, {len(unconfirmed)} unconfirmed, "
+            f"{requests_used} requests"
+        )
+        if truncated:
+            summary += " (partial)"
+        return ToolResult(content=summary, structured_content=result.model_dump(by_alias=True))
 
     return 1

@@ -55,10 +55,13 @@ CATS API limits this design cannot work around, and does not hide:
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime
 from typing import Annotated, Any
 
-from pydantic import Field
+from fastmcp.tools import ToolResult
+from pydantic import BaseModel, ConfigDict, Field
 
+from cats_mcp.composites.models import ExecutionFacts, RateLimit
 from cats_mcp.composites.reads import (
     MAX_BATCH,
     _dedupe,
@@ -128,6 +131,151 @@ DEFAULT_SOURCES: tuple[str, ...] = ("activity", "application", "task")
 _PER_CANDIDATE_SOURCES = frozenset({"activity", "task", "record"})
 
 
+class TimelineEvent(BaseModel):
+    """One event, in the one shape all five collections are merged into.
+
+    The five sources carry genuinely different extras - a stage change has a
+    `from_status`, a task has a `due_date`, an activity has neither - and the
+    obvious way to hold that is a loose dict per row. That is what this model
+    replaces (issue #17). A loose dict has no schema, so a caller cannot know
+    that `from_status` is a thing a row might have until it happens to see one,
+    and a key could stop being emitted with nothing to notice it.
+
+    So every extra any source can produce is an explicit optional field here.
+    A row is a fixed set of keys whose values vary, rather than a varying set
+    of keys, and the output schema lists all of them.
+
+    Two fields carry the properties this tool exists to protect:
+
+      * `date` is null unless the value actually parsed, so a non-null date is
+        a real point in time.
+      * `date_raw` holds the original when it did not parse. Together they are
+        what makes a bad timestamp a thing you can go and fix rather than a row
+        that quietly vanished.
+
+    Ids are `int | str` because CATS is not consistent about which it sends,
+    and a candidate id arriving as "1" from one collection and 1 from another
+    would break the join if this model normalised one of them away.
+    """
+
+    #: CATS sends numeric ids and titles interchangeably as numbers or strings
+    #: on some accounts. Coercing rather than raising keeps one odd row from
+    #: failing the whole history, which is the failure this tool least tolerates.
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+
+    candidate_id: int | str | None = Field(
+        description="The candidate this event belongs to. Null when a stage "
+        "change could not be attributed back to one."
+    )
+    source: str = Field(description="The CATS collection the row came from.")
+    type: str | None = Field(description="What CATS called the event inside that collection.")
+    date: str | None = Field(
+        description="The event date, only when it parsed as ISO 8601. Null otherwise - "
+        "see date_raw."
+    )
+    date_field: str = Field(
+        description="The field the date was read from. Sources disagree "
+        "(date_created, due_date, date_modified), so the row says which it used."
+    )
+    date_raw: str | None = Field(
+        default=None,
+        description="The original value when it could not be parsed, kept verbatim so "
+        "the underlying record can be corrected.",
+    )
+    event_id: int | str | None = Field(
+        default=None,
+        description="Id of the source row itself, not of the candidate.",
+    )
+    pipeline_id: int | str | None = Field(
+        default=None,
+        description="The pipeline an application or stage change belongs to. Joins the two.",
+    )
+    job_id: int | str | None = Field(default=None, description="The job that pipeline is on.")
+    status_id: int | str | None = Field(
+        default=None, description="Account-specific pipeline status id."
+    )
+    status: str | None = Field(
+        default=None,
+        description="Human title for status_id. Null when the workflow does not "
+        "describe that id - an unknown id is never given an invented label.",
+    )
+    from_status_id: int | str | None = Field(
+        default=None, description="Status the pipeline moved out of, when CATS recorded one."
+    )
+    from_status: str | None = Field(
+        default=None, description="Human title for from_status_id, on the same terms."
+    )
+    summary: str | None = Field(
+        default=None, description="Activity notes or task title, as CATS stored it."
+    )
+    regarding_id: int | str | None = Field(
+        default=None, description="The record an activity was logged against."
+    )
+    is_completed: bool | None = Field(default=None, description="Whether a task is done.")
+    due_date: str | None = Field(
+        default=None, description="A task's due date, kept even when it dated from it."
+    )
+
+
+class IncompleteSource(BaseModel):
+    """One candidate-and-source pair that holds more history than was read."""
+
+    candidate_id: int | str | None = Field(default=None, description="The candidate affected.")
+    source: str = Field(description="The collection that had more rows than one page.")
+    reason: str = Field(description="What stopped the read, in words the caller can act on.")
+
+
+class TimelineWindow(BaseModel):
+    """The bounds the caller asked for, echoed back exactly as given."""
+
+    since: str | None = Field(default=None, description="Lower bound, or null for none.")
+    until: str | None = Field(default=None, description="Upper bound, or null for none.")
+
+
+class TimelineResult(BaseModel):
+    """One merged history, plus everything needed to judge how complete it is.
+
+    The counts are not decoration. `undated`, `out_of_window`,
+    `omitted_by_row_cap`, `incomplete` and `sources_skipped` are how a caller
+    tells "that is the whole history" from "that is where I stopped reading",
+    and a history that cannot make that distinction is a confidently wrong
+    answer rather than a partial one.
+    """
+
+    timeline: list[TimelineEvent] = Field(
+        description="Events oldest first, with undated rows last."
+    )
+    count: int = Field(description="Rows in `timeline`.")
+    candidate_ids: list[int | str] = Field(description="The ids actually read, after dedupe.")
+    requested: int = Field(description="How many ids the caller passed, before dedupe.")
+    candidate_ids_truncated: bool = Field(
+        description="True when the batch ceiling cut the id list."
+    )
+    sources: list[str] = Field(description="The sources this call read.")
+    source_requests: dict[str, int] = Field(
+        description="CATS requests spent per source, so the bill can be attributed."
+    )
+    sources_skipped: dict[str, str] = Field(
+        description="Sources the request budget never reached, and why. A source "
+        "listed here holds unknown history, not no history."
+    )
+    incomplete: list[IncompleteSource] = Field(
+        description="Candidate/source pairs with more rows than one page holds."
+    )
+    window: TimelineWindow = Field(description="The bounds applied, echoed back.")
+    out_of_window: int = Field(description="Dated events dropped by those bounds.")
+    undated: int = Field(
+        description="Events whose date was missing or unreadable. They are returned "
+        "regardless of the window, never dropped."
+    )
+    omitted_by_row_cap: int = Field(description="Events cut by max_rows.")
+    row_cap_reached: bool = Field(description="True when max_rows cut anything.")
+    execution: ExecutionFacts = Field(
+        description="What the call spent and what it could not finish."
+    )
+    note: str = Field(description="How to read the result, in one paragraph.")
+
+
 def _event(
     candidate_id: Any,
     source: str,
@@ -135,7 +283,7 @@ def _event(
     date_value: Any,
     date_field: str,
     **extra: Any,
-) -> dict[str, Any]:
+) -> tuple[datetime | None, TimelineEvent]:
     """Build one timeline row, always labelled with where it came from.
 
     `source` is the CATS collection, `type` is what CATS called the event
@@ -153,25 +301,24 @@ def _event(
     away - it is kept verbatim in `date_raw`, which is what makes a bad
     timestamp a thing you can go and fix rather than a row that vanished.
 
-    `_at` is the parsed timestamp used for ordering. It is stripped before the
-    result is returned; None means the date could not be read, which makes the
-    row undated rather than absent.
+    Returned alongside the row is the parsed timestamp used for ordering. It
+    travels beside the model rather than on it, because it is a sort key and not
+    a fact about the event; None means the date could not be read, which makes
+    the row undated rather than absent.
     """
     parsed = _parse_iso(date_value)
-    row: dict[str, Any] = {
-        "candidate_id": candidate_id,
-        "source": source,
-        "type": event_type,
-        "date": date_value if parsed is not None else None,
-        "date_field": date_field,
-    }
+    raw = None
     if parsed is None and date_value is not None:
-        row["date_raw"] = date_value
-    for key, value in extra.items():
-        if value is not None:
-            row[key] = value
-    row["_at"] = parsed
-    return row
+        raw = date_value if isinstance(date_value, str) else str(date_value)
+    return parsed, TimelineEvent(
+        candidate_id=candidate_id,
+        source=source,
+        type=event_type,
+        date=date_value if parsed is not None else None,
+        date_field=date_field,
+        date_raw=raw,
+        **extra,
+    )
 
 
 def _status_change_row(row: dict[str, Any], titles: dict[str, str]) -> dict[str, Any]:
@@ -210,6 +357,13 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
 
     @mcp.tool(
         name="get_candidate_timeline",
+        # Passed explicitly, and it has to be. Returning `-> ToolResult` alone
+        # leaves the tool with no output schema at all, and returning the model
+        # directly makes FastMCP serialise the entire payload into the display
+        # content as well, which is the duplication issue #17 was filed about.
+        # Declaring the schema here and returning a ToolResult gives both: a
+        # typed, object-rooted contract and a one-line human summary.
+        output_schema=TimelineResult.model_json_schema(),
         description=(
             "Retrieve one merged, chronologically ordered history for a batch of "
             "candidates, assembled from the CATS collections that otherwise have to be "
@@ -308,7 +462,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 ),
             ),
         ] = DEFAULT_MAX_REQUESTS,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         set_run_id()
         client = client_getter()
 
@@ -346,10 +500,13 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
 
         errors: dict[str, str] = {}
         skipped: dict[str, str] = {}
-        incomplete: list[dict[str, Any]] = []
+        incomplete: list[IncompleteSource] = []
         requests_used = 0
         source_requests: dict[str, int] = {}
-        events: list[dict[str, Any]] = []
+        # Each entry is (sort key, row). The key is the parsed timestamp, which
+        # is deliberately not a field on the row - it is how the merge is
+        # ordered, not something CATS said about the event.
+        events: list[tuple[datetime | None, TimelineEvent]] = []
 
         async def gather(
             source: str, suffix: str, *, paged: bool = True
@@ -386,14 +543,14 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             """Record that a candidate has more of this source than one page holds."""
             if _has_next_page(payload):
                 incomplete.append(
-                    {
-                        "candidate_id": candidate_id,
-                        "source": source,
-                        "reason": (
+                    IncompleteSource(
+                        candidate_id=candidate_id,
+                        source=source,
+                        reason=(
                             f"more than {SOURCE_PAGE_SIZE} rows exist; only the most "
                             f"recent page was read"
                         ),
-                    }
+                    )
                 )
 
         # --- pipelines first: pipeline_status needs the ids they carry -------
@@ -556,14 +713,14 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                         )
 
         # --- order, window, cap ------------------------------------------------
-        undated = [e for e in events if e["_at"] is None]
-        dated = sorted((e for e in events if e["_at"] is not None), key=lambda e: e["_at"])
+        undated = [row for at, row in events if at is None]
+        dated = sorted(((at, row) for at, row in events if at is not None), key=lambda e: e[0])
 
         in_window = [
-            e
-            for e in dated
-            if (window_start is None or e["_at"] >= window_start)
-            and (window_end is None or e["_at"] <= window_end)
+            row
+            for at, row in dated
+            if (window_start is None or at >= window_start)
+            and (window_end is None or at <= window_end)
         ]
         out_of_window = len(dated) - len(in_window)
 
@@ -576,35 +733,64 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
         kept_dated = in_window[-room:] if room else []
         omitted = (len(in_window) - len(kept_dated)) + (len(undated) - len(kept_undated))
 
-        rows = [{k: v for k, v in e.items() if k != "_at"} for e in kept_dated + kept_undated]
+        rows = kept_dated + kept_undated
+        ids_truncated = len(deduplicated) > MAX_BATCH
 
-        return {
-            "timeline": rows,
-            "count": len(rows),
-            "candidate_ids": ids,
-            "requested": len(candidate_ids),
-            "candidate_ids_truncated": len(deduplicated) > MAX_BATCH,
-            "sources": wanted,
-            "source_requests": source_requests,
-            "sources_skipped": skipped,
-            "incomplete": incomplete,
-            "window": {"since": since, "until": until},
-            "out_of_window": out_of_window,
-            "undated": len(undated),
-            "omitted_by_row_cap": omitted,
-            "row_cap_reached": omitted > 0,
-            "errors": errors,
-            "requests_used": requests_used,
-            "rate_limit": client.rate_limit.snapshot(),
-            "note": (
+        result = TimelineResult(
+            timeline=rows,
+            count=len(rows),
+            candidate_ids=ids,
+            requested=len(candidate_ids),
+            candidate_ids_truncated=ids_truncated,
+            sources=wanted,
+            source_requests=source_requests,
+            sources_skipped=skipped,
+            incomplete=incomplete,
+            window=TimelineWindow(since=since, until=until),
+            out_of_window=out_of_window,
+            undated=len(undated),
+            omitted_by_row_cap=omitted,
+            row_cap_reached=omitted > 0,
+            execution=ExecutionFacts(
+                requests_used=requests_used,
+                rate_limit=RateLimit(**client.rate_limit.snapshot()),
+                # Any of the four ceilings stopping the read early counts:
+                # the row cap, the request budget, one page per source, and the
+                # batch size. next_cursor stays null because a history has no
+                # continuation token - the way to get the rest is a narrower
+                # window or a larger budget, which the counts above point at.
+                truncated=bool(omitted or skipped or incomplete or ids_truncated),
+                next_cursor=None,
+                errors=errors,
+            ),
+            note=(
                 "Ordered oldest first. Every row carries source, type and date_field so it "
                 "can be traced back to the CATS collection it came from. Rows whose date "
                 "could not be read are last with a null date, the original in `date_raw`, "
                 "and a count in `undated`; they are returned whatever the window, because "
                 "losing one silently is the worst thing a history can do. A non-empty "
                 "`sources_skipped` means the budget "
-                "stopped before that source was read, not that it holds nothing."
+                "stopped before that source was read, not that it holds nothing. What the "
+                "call spent, and what it could not finish, is under `execution`."
             ),
-        }
+        )
+
+        # The display line is counts and source names only. It is what a client
+        # shows verbatim, and issue #21 keeps names, notes and anything else
+        # read off a person's record inside the structured result, where a
+        # caller has to ask for it.
+        headline = [
+            f"{len(rows)} events from {len(wanted)} sources ({', '.join(wanted)})",
+            f"{len(undated)} undated",
+        ]
+        if omitted:
+            headline.append(f"{omitted} over the row cap")
+        if skipped:
+            headline.append(f"{len(skipped)} sources not read")
+
+        return ToolResult(
+            content="; ".join(headline),
+            structured_content=result.model_dump(),
+        )
 
     return 1
