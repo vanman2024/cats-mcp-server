@@ -103,12 +103,40 @@ SPECS: list[ToolSpec] = [
                 location=ParamLocation.BODY,
                 default=None,
             ),
+            # CATS names this assigned_to_id on the wire. Without the mapping the
+            # body carried "assigned_to", the required field arrived empty, and
+            # CATS answered "assigned_to_id must be positive" - an error that
+            # reads like a bad value when the field was never sent at all.
+            #
+            # Required, not optional: that same 400 is what CATS returns when it
+            # is missing, so offering it as optional only defers the failure.
             Param(
                 name="assigned_to",
-                annotation=int | None,
-                description="User ID to assign task to (optional)",
+                annotation=int,
+                description=(
+                    "CATS user id to assign the task to. Required by CATS. Find "
+                    "ids with list_users."
+                ),
                 location=ParamLocation.BODY,
-                default=None,
+                wire_name="assigned_to_id",
+            ),
+            # Also required by CATS ("priority must not be optional"), and also
+            # missing from this spec entirely, so a caller could not supply it
+            # even knowing it was needed.
+            #
+            # The default is measured rather than guessed: all 100 tasks sampled
+            # from the live account carry priority 5. CATS does not document the
+            # scale, so this exposes the value the account already uses instead
+            # of inventing a range.
+            Param(
+                name="priority",
+                annotation=int,
+                description=(
+                    "Task priority. CATS requires a value and does not document "
+                    "the scale; 5 is what every existing task in the account uses."
+                ),
+                location=ParamLocation.BODY,
+                default=5,
             ),
             Param(
                 name="description",
@@ -157,11 +185,15 @@ SPECS: list[ToolSpec] = [
                 location=ParamLocation.BODY,
                 default=None,
             ),
+            # Same wire-name mapping as create_task (issue #15). Optional here,
+            # because a partial update that does not mean to reassign should not
+            # have to resend the assignee.
             Param(
                 name="assigned_to",
                 annotation=int | None,
-                description="Updated assignee user ID (optional)",
+                description="CATS user id to reassign the task to.",
                 location=ParamLocation.BODY,
+                wire_name="assigned_to_id",
                 default=None,
             ),
             Param(
