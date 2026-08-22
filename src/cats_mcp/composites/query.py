@@ -453,8 +453,17 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 # The sweep is the slow part and the caller cannot see it. Its
                 # budget is the only honest denominator - the account's true
                 # size is exactly what this is trying to find out.
+                #
+                # The seed VALUE is deliberately absent from this message.
+                # states/cities are harmless, but seed_field/seed_values are
+                # arbitrary, so a caller resolving by email would otherwise put
+                # that address into a progress notification. Issue #21: no
+                # candidate names or contact information in progress. Position
+                # in the plan says as much and leaks nothing.
                 await _progress(
-                    requests_used, max_requests, f"sweeping {field}={value}, page {page}"
+                    requests_used,
+                    max_requests,
+                    f"seeding {seed_index + 1}/{len(plan)}, page {page}",
                 )
             except CATSAPIError as exc:
                 errors[f"seed:{field}={value}:page:{page}"] = str(exc)
@@ -537,6 +546,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
         memberships: dict[str, list[dict[str, Any]]] = {}
         wanted_lists = _dedupe([*(include_list_ids or []), *(exclude_list_ids or [])])
         if wanted_lists and requests_used < max_requests:
+            await _progress(requests_used, max_requests, "resolving saved-list membership")
             memberships, list_errors, used = await _list_memberships(client, wanted_lists)
             errors.update(list_errors)
             requests_used += used
@@ -616,6 +626,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             requests_used += len(affordable)
 
         # --- Assemble, then apply the filters that needed Phase C -----------
+        await _progress(requests_used, max_requests, "assembling results")
         rows: list[dict[str, Any]] = []
         for row in survivors:
             key = str(row.get("id"))

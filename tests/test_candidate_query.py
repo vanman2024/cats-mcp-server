@@ -454,4 +454,40 @@ async def test_the_sweep_reports_progress_to_the_client():
     assert seen, "the sweep reported no progress at all"
     assert [p for p, _, _ in seen] == sorted(p for p, _, _ in seen), "progress went backwards"
     assert all(t == 3 for _, t, _ in seen), "total should be the request budget"
-    assert any("sweeping" in (m or "") for _, _, m in seen), "no message named the work"
+    assert any("seeding" in (m or "") for _, _, m in seen), "no message named the work"
+
+
+async def test_progress_messages_never_carry_the_seed_value():
+    """Issue #21: no candidate names or contact information in progress.
+
+    states and cities are harmless, but seed_field/seed_values are arbitrary -
+    a caller resolving someone by email address would otherwise put that
+    address into a progress notification, which is a different audience from
+    the tool result. The first version of this shipped that way; this test is
+    why it will not ship that way again.
+    """
+    secret = "pat.mechanic@example.com"
+    seen: list[str] = []
+
+    async def on_progress(progress, total, message):
+        seen.append(message or "")
+
+    def handler(request):
+        if request.url.path.endswith("/candidates/search"):
+            return httpx2.Response(200, json=collection([candidate(1, "HD Tech")]))
+        return httpx2.Response(200, json={})
+
+    async with Client(build(handler), progress_handler=on_progress) as client:
+        await client.call_tool(
+            "query_candidate_facts",
+            {
+                "seed_field": "email",
+                "seed_values": [secret],
+                "include": [],
+                "max_requests": 2,
+            },
+        )
+
+    assert seen, "no progress reported, so the assertion below proves nothing"
+    leaked = [m for m in seen if secret in m or "example.com" in m]
+    assert not leaked, f"a seed value reached a progress message: {leaked}"
