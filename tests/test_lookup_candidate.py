@@ -82,6 +82,16 @@ def candidate(cid, *, first="Pat", last=None, emails=None, phones=None, **extra)
 
 
 def probe_body(request):
+    """What a probe asked for, whichever endpoint it used.
+
+    Email probes go out as GET /candidates/search?query=, because CATS refuses
+    `email` as a structured filter field - it is a sub-collection, not a column,
+    and POST returns "Validation failed". Everything else is still a POST with a
+    field/filter/value body. Reading only the body made these tests pass while
+    email lookup returned nothing against a live account.
+    """
+    if request.method == "GET":
+        return {"value": request.url.params.get("query"), "field": "email"}
     return json.loads(request.content)
 
 

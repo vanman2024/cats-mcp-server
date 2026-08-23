@@ -107,6 +107,16 @@ PROBE_FIELDS: dict[str, str] = {
 #: All of them are read because reporting "no match" from having looked in one
 #: place is a wrong answer on the exact field a duplicate check turns on.
 EMAIL_KEYS = ("emails", "email", "email_address", "email1", "email2")
+#: Identity fields CATS will not accept as a structured filter.
+#:
+#: POST /candidates/search rejects both with "Validation failed" - they are
+#: sub-collections, not columns on the candidate. GET /candidates/search?query=
+#: reaches them instead. Confirmed against a live account: a full email address
+#: returns total=1, the correct candidate. A phone number returns nothing by
+#: either route, so a phone probe stays structured and reports honestly when it
+#: finds nobody rather than pretending free text would have helped.
+FREE_TEXT_PROBE_FIELDS: frozenset[str] = frozenset({"email"})
+
 EMAIL_VALUE_KEYS = ("email", "address", "email_address", "value")
 
 #: The same, for phones. `number` is the shape a live account returned; the
@@ -208,11 +218,21 @@ def _flatten(value: Any, value_keys: tuple[str, ...]) -> list[str]:
             out.extend(_flatten(item, value_keys))
         return out
     if isinstance(value, dict):
-        return [
+        named = [
             value[key]
             for key in value_keys
             if isinstance(value.get(key), str) and value[key].strip()
         ]
+        if named:
+            return named
+        # A full candidate record keys these by slot, not by value name:
+        #   "emails": {"primary": "...", "secondary": null}
+        #   "phones": {"home": null, "cell": "...", "work": null}
+        # Matching only the value names returned nothing, so a lookup by id
+        # reported emails=[] phones=[] for candidates who plainly have both.
+        # Sub-collection rows are caught above, where the named keys do apply
+        # and an id or timestamp must not be read as a phone number.
+        return [v for v in value.values() if isinstance(v, str) and v.strip()]
     return []
 
 
@@ -647,12 +667,27 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 break
 
             try:
-                payload = await client.request(
-                    "POST",
-                    "/candidates/search",
-                    json={"field": field, "filter": "exactly", "value": form},
-                    params={"per_page": PROBE_PAGE_SIZE, "page": 1},
-                )
+                if field in FREE_TEXT_PROBE_FIELDS:
+                    # CATS refuses email and phone as structured filter fields -
+                    # "Validation failed", verified live - because they are
+                    # sub-collections rather than columns. The free-text endpoint
+                    # does reach them: a full address returns exactly the one
+                    # candidate who holds it, with no false positives. Every row
+                    # is still re-checked by normalized equality below, so this
+                    # only widens what is offered for confirmation, never what
+                    # is asserted.
+                    payload = await client.request(
+                        "GET",
+                        "/candidates/search",
+                        params={"query": form, "per_page": PROBE_PAGE_SIZE},
+                    )
+                else:
+                    payload = await client.request(
+                        "POST",
+                        "/candidates/search",
+                        json={"field": field, "filter": "exactly", "value": form},
+                        params={"per_page": PROBE_PAGE_SIZE, "page": 1},
+                    )
                 requests_used += 1
             except CATSAPIError as exc:
                 errors[f"probe:{field}={form}"] = str(exc)
