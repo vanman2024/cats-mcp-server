@@ -28,6 +28,15 @@ Cost model, and why the phases are ordered the way they are:
 
 Doing C before B is the mistake this exists to prevent: it spends the whole
 hourly budget describing people the caller was about to discard.
+
+One thing about CATS paging that changes what any bounded sweep means: results
+come back oldest-first and `sort` is ignored on the candidate endpoints. A
+budgeted sweep therefore describes the oldest slice of an account, not a sample
+of it. Measured on a live account, the first 1,500 candidates were all from
+2023 while the newest 2,799 told a completely different story - 1% missing a
+source rather than 21%, and outbound channels that did not appear at all in the
+old records. Use seed_filter="greater_than" with seed_field="date_created" when
+the question is about current data.
 """
 
 from __future__ import annotations
@@ -252,8 +261,12 @@ def _seed_plan(
     cities: list[str] | None,
     seed_field: str | None,
     seed_values: list[str] | None,
-) -> list[tuple[str, str]]:
-    """(field, value) pairs to sweep, one exact filter each.
+    seed_filter: str = "exactly",
+) -> list[tuple[str, str, str]]:
+    """(field, value, filter) triples to sweep, one request each.
+
+    `seed_filter` applies to seed_field only; states and cities stay exact,
+    because a province is a stored value to match rather than a range.
 
     One filter per value on purpose: `contains` tokenises, so a single
     contains='British Columbia' also matches every record containing
@@ -261,15 +274,15 @@ def _seed_plan(
     Columbia', 'B.C.' are three different stored values, not three spellings of
     one - so the caller passes the variants it wants and each is exact.
     """
-    plan: list[tuple[str, str]] = []
+    plan: list[tuple[str, str, str]] = []
     for field, values in (("state", states), ("city", cities)):
         for value in values or []:
             if str(value).strip():
-                plan.append((field, str(value).strip()))
+                plan.append((field, str(value).strip(), "exactly"))
     if seed_field and seed_values:
         for value in seed_values:
             if str(value).strip():
-                plan.append((seed_field.strip(), str(value).strip()))
+                plan.append((seed_field.strip(), str(value).strip(), seed_filter))
     return plan
 
 
@@ -336,8 +349,19 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
         ] = None,
         seed_values: Annotated[
             list[str] | None,
-            Field(description="Exact values for seed_field, one filter each."),
+            Field(description="Values for seed_field, one filter each."),
         ] = None,
+        seed_filter: Annotated[
+            Literal["exactly", "greater_than", "less_than", "contains"],
+            Field(
+                description=(
+                    "How seed_values are compared. 'exactly' by default. Use "
+                    "'greater_than' with seed_field='date_created' to sweep recent "
+                    "records: CATS pages oldest-first and ignores sort, so a budgeted "
+                    "sweep otherwise only ever sees the oldest slice of the account."
+                )
+            ),
+        ] = "exactly",
         title: Annotated[
             TextPredicate | None,
             Field(description="Compound condition on the candidate's title."),
@@ -425,7 +449,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
         set_run_id()
         client = client_getter()
 
-        plan = _seed_plan(states, cities, seed_field, seed_values)
+        plan = _seed_plan(states, cities, seed_field, seed_values, seed_filter)
         if not plan:
             raise ValueError(
                 "A seed is required: pass states, cities, or seed_field with "
@@ -491,7 +515,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             return len(rows)
 
         while seed_index < len(plan):
-            field, value = plan[seed_index]
+            field, value, seed_op = plan[seed_index]
             # Budget OR clock. Whichever runs out first, the answer so far is
             # worth more than the error a client timeout would produce.
             if requests_used >= max_requests or deadline.expired:
@@ -510,7 +534,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 first = await client.request(
                     "POST",
                     "/candidates/search",
-                    json={"field": field, "filter": "exactly", "value": value},
+                    json={"field": field, "filter": seed_op, "value": value},
                     params={"per_page": SEED_PAGE_SIZE, "page": page},
                 )
                 requests_used += 1
@@ -555,13 +579,14 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             if page_numbers:
                 semaphore = asyncio.Semaphore(CONCURRENCY)
 
-                async def fetch_page(number: int, field=field, value=value) -> Any:
+                async def fetch_page(number: int, field=field, value=value,
+                                     seed_op=seed_op) -> Any:
                     async with semaphore:
                         try:
                             return number, await client.request(
                                 "POST",
                                 "/candidates/search",
-                                json={"field": field, "filter": "exactly", "value": value},
+                                json={"field": field, "filter": seed_op, "value": value},
                                 params={"per_page": SEED_PAGE_SIZE, "page": number},
                             )
                         except CATSAPIError as exc:
@@ -820,7 +845,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
             "dropped_by": dropped_by,
             "truncated": truncated or not exhausted,
             "next_cursor": next_cursor,
-            "seeds_used": [{"field": f, "value": v} for f, v in plan],
+            "seeds_used": [{"field": f, "value": v, "filter": op} for f, v, op in plan],
             "included": wanted,
             "errors": errors,
             "requests_used": requests_used,
