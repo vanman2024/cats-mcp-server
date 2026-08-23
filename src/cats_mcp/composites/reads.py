@@ -215,11 +215,24 @@ async def _status_titles(client: Any) -> tuple[dict[str, str], int]:
 
     A status id is account-specific and means nothing to a reader: "6377104"
     does not say Placed. Resolving it is normalization, which is the adapter's
-    job, and it costs one request that the reference-data cache serves for ten
-    minutes afterwards.
+    job.
 
-    A failure here is not worth failing the call over - the ids are still
-    returned, just unlabelled.
+    Two requests deep, not one, because GET /pipelines/workflows does not embed
+    statuses. This function used to read `workflow["statuses"]` straight off the
+    list response and return whatever it found - which on a real account was
+    nothing at all. The live workflow row carries only `_links`, `id`, `title`,
+    `is_default` and `date_modified`, so the loop ran three times over an empty
+    list and returned {}. Every status id in every composite came back
+    unlabelled, and because unresolvable ids are deliberately passed through
+    rather than raising, it looked exactly like an account whose workflows
+    happened to be unnamed. Forty titles were resolvable the whole time.
+
+    resources/context.py already fetched the statuses per workflow; this is the
+    same two-step, brought over. The extra requests are per workflow, not per
+    call site, and the reference-data cache serves them for ten minutes.
+
+    A failure is still not worth failing the call over - the ids are returned
+    unlabelled, which is the honest degradation.
     """
     try:
         payload = await client.request("GET", "/pipelines/workflows")
@@ -227,12 +240,32 @@ async def _status_titles(client: Any) -> tuple[dict[str, str], int]:
         logger.warning("could not resolve pipeline status titles: %s", exc)
         return {}, 1
 
+    requests_used = 1
     titles: dict[str, str] = {}
-    for workflow in _embedded_rows(payload):
-        for status in workflow.get("statuses") or []:
+
+    def absorb(rows: Any) -> None:
+        for status in rows or []:
             if isinstance(status, dict) and status.get("id") is not None:
                 titles[str(status["id"])] = status.get("title") or status.get("name") or ""
-    return titles, 1
+
+    for workflow in _embedded_rows(payload):
+        # Kept for accounts that DO embed them - cheaper, and harmless where
+        # the key is absent.
+        absorb(workflow.get("statuses"))
+        workflow_id = workflow.get("id")
+        if workflow_id is None or workflow.get("statuses"):
+            continue
+        try:
+            statuses = await client.request(
+                "GET", f"/pipelines/workflows/{workflow_id}/statuses"
+            )
+            requests_used += 1
+        except CATSAPIError as exc:
+            logger.warning("could not resolve statuses for workflow %s: %s", workflow_id, exc)
+            continue
+        absorb(_embedded_rows(statuses))
+
+    return titles, requests_used
 
 
 def _pipeline_rows(payload: Any, titles: dict[str, str]) -> list[dict[str, Any]]:
