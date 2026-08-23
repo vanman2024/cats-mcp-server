@@ -372,11 +372,26 @@ def _flatten(value: Any, value_keys: tuple[str, ...]) -> list[str]:
             out.extend(_flatten(item, value_keys))
         return out
     if isinstance(value, dict):
-        return [
+        named = [
             value[key]
             for key in value_keys
             if isinstance(value.get(key), str) and value[key].strip()
         ]
+        if named:
+            return named
+        # A full candidate record does not use those keys. It stores
+        # emails as {"primary": ..., "secondary": null} and phones as
+        # {"home": null, "cell": ..., "work": null} - slot names, not value
+        # names. Matching only the value names found nothing, so every one of
+        # 300 live candidates was reported contact_missing, including people
+        # with both an address and a number. Duplicate detection went to zero
+        # for the same reason: it had no values to cluster on.
+        #
+        # Any string in the dict counts, because a slot dict holds nothing but
+        # contact values. Sub-collection rows are handled above, where the
+        # named keys do apply and an id or timestamp must not be mistaken for
+        # a phone number.
+        return [v for v in value.values() if isinstance(v, str) and v.strip()]
     return []
 
 
