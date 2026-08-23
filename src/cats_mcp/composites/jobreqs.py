@@ -425,16 +425,58 @@ def _first_value(row: dict[str, Any], keys: tuple[str, ...]) -> int | str | None
     return None
 
 
+def _selection_labels(definition: Any) -> dict[str, str]:
+    """Map a picklist field's option ids to their labels.
+
+    A choice field stores the id, never the text. `Site` on a live job reads
+    `[1186703]`, and the label "Blackwater" lives on the *definition* under
+    `field.selections`. Without this the tool returns a number, which is worse
+    than returning nothing: it looks like data.
+    """
+    field = definition.get("field") if isinstance(definition, dict) else None
+    selections = field.get("selections") if isinstance(field, dict) else None
+    labels: dict[str, str] = {}
+    for option in selections or []:
+        if isinstance(option, dict) and option.get("id") is not None:
+            labels[str(option["id"])] = str(option.get("label") or option.get("name") or "")
+    return labels
+
+
 def _custom_fields(payload: Any) -> list[CustomFieldValue]:
-    """A job's custom fields, each keeping the account's label and id."""
+    """A job's custom fields, each keeping the account's label and id.
+
+    Two things CATS does here that the first version missed, both found by
+    running this against a live job:
+
+    * The field's name is not on the row. The row is `{"id", "value"}` and the
+      name sits in `_embedded.definition.name`. Reading a top-level `name`
+      returned None for all 22 fields, which then broke the certification
+      lookup downstream - it cannot match a field name it never resolved.
+    * A choice field's `value` is an option *id*. `Site` reads `[1186703]`;
+      the label "Blackwater" is on the definition under `field.selections`.
+      Returning the id is worse than returning nothing, because a number looks
+      like an answer.
+    """
     out: list[CustomFieldValue] = []
     for row in _embedded_rows(payload):
-        label = row.get("name") or row.get("title") or row.get("field_name")
+        definition = (row.get("_embedded") or {}).get("definition") or {}
+        label = (
+            definition.get("name")
+            or row.get("name")
+            or row.get("title")
+            or row.get("field_name")
+        )
+        labels = _selection_labels(definition)
+        values = _texts(row.get("value"))
+        if labels:
+            # Resolve what we can; an id with no matching selection is kept as
+            # it stands rather than dropped, so a stale option is visible.
+            values = [labels.get(v, v) for v in values]
         out.append(
             CustomFieldValue(
                 field_id=row.get("id") if isinstance(row.get("id"), int | str) else None,
                 name=str(label) if label is not None else None,
-                values=_texts(row.get("value")),
+                values=values,
             )
         )
     return out

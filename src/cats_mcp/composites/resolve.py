@@ -71,7 +71,13 @@ POOL_PAGE_SIZE = 100
 #: what it did not reach. A silent stop is the one outcome this tool cannot
 #: have: a reference that resolved against half the account is not resolved.
 DEFAULT_MAX_REQUESTS = 25
-MAX_REQUESTS_CEILING = 100
+#: Raised from 100 after a live run. Custom fields and tags are one request per
+#: job, so on an account with 125 jobs a ceiling of 100 could not finish the
+#: sweep - it reported `unsearched: 27` and returned nothing for a job whose
+#: Customer field really did say "Artemis". The default stays conservative for
+#: an account on the standard 500/hour; a caller who needs completeness can now
+#: ask for it, and `unsearched` still says what was skipped either way.
+MAX_REQUESTS_CEILING = 300
 
 #: Default and hard ceiling on matched jobs returned by one call.
 DEFAULT_MAX_JOBS = 25
@@ -399,13 +405,54 @@ def _custom_field_texts(payload: Any) -> list[tuple[str, str]]:
     Only the value is matched. Searching the labels too would match every job
     that merely *has* a field called Site against a caller looking for a site,
     which is a false positive on the exact field this tool was added to search.
+
+    Two shapes had to be learned from a live account, and getting either wrong
+    makes this function silently useless:
+
+    * The field's name is in `_embedded.definition.name`, not on the row.
+    * A choice field stores an option *id*. `Customer` reads `1091163`; the
+      label "Artemis" is on the definition under `field.selections`. Matching
+      the raw id meant a search for "Artemis" compared against "1091163" and
+      returned nothing - which looked exactly like the job not existing.
     """
     out: list[tuple[str, str]] = []
     for row in _rows(payload):
-        label = row.get("name") or row.get("title") or row.get("field_name")
+        definition = (row.get("_embedded") or {}).get("definition") or {}
+        label = (
+            definition.get("name")
+            or row.get("name")
+            or row.get("title")
+            or row.get("field_name")
+        )
         source = str(label) if label else "custom_field"
-        for text in _text_values(row.get("value")):
-            out.append((source, text))
+
+        field = definition.get("field") if isinstance(definition, dict) else None
+        selections = field.get("selections") if isinstance(field, dict) else None
+        labels = {
+            str(o["id"]): str(o.get("label") or o.get("name") or "")
+            for o in (selections or [])
+            if isinstance(o, dict) and o.get("id") is not None
+        }
+
+        # Resolve option ids to labels BEFORE _text_values sees them. That
+        # helper deliberately drops bare numbers, so an owner id or a salary
+        # cannot manufacture a substring match - correct, but it also dropped
+        # every picklist value, because CATS stores those as integers. Customer
+        # 1091163 and Site [1186703] were discarded before they could become
+        # "Artemis" and "Blackwater", which is why searching for a customer by
+        # name returned nothing on a job that plainly had it.
+        raw = row.get("value")
+        candidates = raw if isinstance(raw, list) else [raw]
+        resolved: list[Any] = []
+        for item in candidates:
+            if item is None:
+                continue
+            label = labels.get(str(item))
+            resolved.append(label if label is not None else item)
+
+        for value in resolved:
+            for text in _text_values(value):
+                out.append((source, text))
     return out
 
 

@@ -878,3 +878,58 @@ async def test_the_tool_is_tagged_and_annotated_read_only():
     assert tool.annotations.destructive_hint is False
     assert tool.annotations.idempotent_hint is True
     assert tool.annotations.open_world_hint is True
+
+
+# --- the shape CATS actually sends ------------------------------------------
+
+
+async def test_the_live_stage_history_shape_is_readable():
+    """The real /pipelines/{id}/statuses row, copied from a live account:
+
+        {"id": 6377094, "from_id": null, "title": "New Candidate",
+         "mapping": "APPLICANT", "is_current": false,
+         "date_changed": "2026-07-18T00:22:04+00:00"}
+
+    There is no `status_id` and no `date_created`. The first version of this
+    tool looked for both, found neither, and reported all 21 pipelines on a real
+    job as `anchor_date_unreadable` - so it answered "nobody needs following up"
+    when it had simply failed to read the dates. An empty result that looks like
+    good news is the worst failure available here, which is why this fixture is
+    the live shape rather than a tidied one.
+    """
+    live_status_id = 6377094
+
+    def handler(request):
+        path = request.url.path
+        if path.endswith("/jobs/7/pipelines"):
+            return httpx2.Response(200, json=collection(
+                [{"id": 101, "candidate_id": 42, "job_id": 7,
+                  "status_id": live_status_id, "date_modified": "2026-07-18T00:22:04+00:00"}],
+                key="pipelines"))
+        if path.endswith("/pipelines/101/statuses"):
+            return httpx2.Response(200, json=collection(
+                [{"id": live_status_id, "from_id": None, "workflow_id": 5691190,
+                  "title": "New Candidate", "mapping": "APPLICANT", "is_current": True,
+                  "user_id": 584880, "date_changed": "2026-07-18T00:22:04+00:00"}],
+                key="statuses"))
+        if path.endswith("/candidates/42/activities"):
+            return httpx2.Response(200, json=collection([], key="activities"))
+        if path.endswith("/pipelines/workflows"):
+            return httpx2.Response(200, json=collection([], key="workflows"))
+        return httpx2.Response(200, json={})
+
+    async with Client(build(handler)) as client:
+        result = await client.call_tool("find_followup_facts", {
+            "job_ids": [7],
+            "older_than_hours": 24,
+            "as_of": "2026-08-22T00:00:00+00:00",
+        })
+
+    data = result.structured_content
+    assert not [u for u in data["unevaluated"] if u["reason"] == "anchor_date_unreadable"], (
+        f"date_changed was not read: {data['unevaluated']}"
+    )
+    assert data["count"] == 1, data
+    row = data["records"][0]
+    assert row["anchor_date_field"] == "date_changed", row
+    assert row["elapsed_hours"] > 24

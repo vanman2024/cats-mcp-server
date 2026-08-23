@@ -206,7 +206,11 @@ class TimelineEvent(BaseModel):
         default=None, description="Human title for from_status_id, on the same terms."
     )
     summary: str | None = Field(
-        default=None, description="Activity notes or task title, as CATS stored it."
+        default=None,
+        description=(
+            "What CATS recorded: the activity annotation, falling back to notes, "
+            "or the task title."
+        ),
     )
     regarding_id: int | str | None = Field(
         default=None, description="The record an activity was logged against."
@@ -613,7 +617,9 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                             row.get("date_created"),
                             "date_created",
                             event_id=row.get("id"),
-                            summary=row.get("notes"),
+                            # annotation first: it is populated on ~93% of
+                            # activities, notes on ~7%.
+                            summary=row.get("annotation") or row.get("notes"),
                             regarding_id=row.get("regarding_id"),
                         )
                     )

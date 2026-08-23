@@ -408,21 +408,47 @@ def _stage_rows(
 ) -> tuple[list[tuple[datetime, dict[str, Any]]], list[dict[str, Any]]]:
     """Stage changes out of `/pipelines/{id}/statuses`, dated and undated.
 
-    The row shape varies by account age: some carry `status_id`, others record
-    the move as `to_status_id`, and the date is `date_created` on newer rows and
-    `date_modified` on older ones. All of them are checked, because picking one
-    and calling the rest undated would push real stage changes into
-    `unevaluated` for no reason at all.
+    The live shape, confirmed against a real account:
+
+        {"id": 6377094, "from_id": null, "title": "New Candidate",
+         "mapping": "APPLICANT", "is_current": false,
+         "date_changed": "2026-07-18T00:22:04+00:00"}
+
+    Three things this got wrong before, each of which made every row unusable:
+
+    * The date is `date_changed`. Looking only for date_created/date_modified
+      found neither, so all 21 pipelines on a real job came back
+      `anchor_date_unreadable` and the tool reported nothing to follow up on -
+      an empty answer that looked like good news.
+    * The status id is `id`, and the previous one is `from_id` (not
+      `to_status_id`/`from_status_id`).
+    * `title` is already on the row, so stage history needs no separate lookup
+      to be readable.
+
+    The older spellings are still checked, because an account that predates this
+    shape should keep working rather than silently reporting nothing.
     """
     dated: list[tuple[datetime, dict[str, Any]]] = []
     undated: list[dict[str, Any]] = []
     for raw in _embedded_rows(payload):
-        status_id = raw.get("status_id")
-        if status_id is None:
-            status_id = raw.get("to_status_id")
-        field = "date_created" if raw.get("date_created") else "date_modified"
+        # An explicit status_id/to_status_id wins when present. Live CATS sends
+        # neither - there, `id` IS the status id - so `id` is the fallback, not
+        # the first choice. Reading `id` first would misread any shape that
+        # carries a separate row id.
+        status_id = raw.get("status_id") or raw.get("to_status_id") or raw.get("id")
+        field = next(
+            (f for f in ("date_changed", "date_created", "date_modified") if raw.get(f)),
+            "date_changed",
+        )
         value = raw.get(field)
-        entry = {"status_id": status_id, "date_field": field, "date_value": value}
+        entry = {
+            "status_id": status_id,
+            "date_field": field,
+            "date_value": value,
+            "title": raw.get("title"),
+            "from_id": raw.get("from_id"),
+            "is_current": raw.get("is_current"),
+        }
         parsed = _parse_iso(value)
         if parsed is None:
             undated.append(entry)

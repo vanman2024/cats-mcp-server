@@ -17,6 +17,7 @@ These tools make the same work one tool call returning one compact table.
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
@@ -63,6 +64,39 @@ INCLUDE_OPTIONS: dict[str, str] = {
 
 #: The `include` values that cost a request per candidate.
 PER_CANDIDATE_INCLUDES = frozenset({"identity", "custom_fields", "pipelines"})
+
+
+#: Wall-clock ceiling for one composite call, in seconds.
+#:
+#: Set below the 60s timeout MCP clients commonly enforce. The request budget
+#: alone does not bound duration: a sweep is sequential, and CATS responses run
+#: over a second each, so a 25-request budget is 30-50 seconds of work before a
+#: single candidate is enriched. query_candidate_facts hit exactly that and was
+#: killed by the client at 60s - which throws away every request already spent
+#: and tells the caller nothing, when the tool was perfectly capable of
+#: returning a partial answer and a cursor.
+DEFAULT_DEADLINE_SECONDS = 45.0
+
+
+class Deadline:
+    """A wall-clock budget, alongside the request budget.
+
+    Being killed by a client is the worst available outcome: the work is lost,
+    the requests are still spent against the hourly allowance, and the caller
+    cannot tell a slow account from a broken tool. Stopping early and saying so
+    is strictly better, and the cursor already exists to make it resumable.
+    """
+
+    def __init__(self, seconds: float = DEFAULT_DEADLINE_SECONDS) -> None:
+        self._end = time.monotonic() + max(1.0, seconds)
+
+    @property
+    def expired(self) -> bool:
+        return time.monotonic() >= self._end
+
+    @property
+    def remaining(self) -> float:
+        return max(0.0, self._end - time.monotonic())
 
 
 async def _progress(done: float, total: float | None = None, message: str | None = None) -> None:

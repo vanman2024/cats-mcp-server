@@ -32,6 +32,7 @@ hourly budget describing people the caller was about to discard.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import json
@@ -42,6 +43,9 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 from cats_mcp.composites.reads import (
+    CONCURRENCY,
+    DEFAULT_DEADLINE_SECONDS,
+    Deadline,
     _dedupe,
     _embedded_rows,
     _gather_by_id,
@@ -179,16 +183,37 @@ def _contact_methods(record: Any) -> dict[str, bool]:
 
     embedded = record.get("_embedded") if isinstance(record.get("_embedded"), dict) else {}
 
+    def has_text(value: Any) -> bool:
+        """A real contact value, at any of the shapes CATS uses for one."""
+        if isinstance(value, str):
+            return bool(value.strip())
+        if isinstance(value, dict):
+            # A sub-collection row: {"email": "...", "isPrimary": true} or
+            # {"number": "...", "type": "mobile"}. Only the value fields count -
+            # an id and a timestamp are not a phone number.
+            return any(has_text(value.get(k)) for k in ("email", "number", "value", "address"))
+        return False
+
     def present(*keys: str) -> bool:
         for key in keys:
             value = record.get(key)
             if value is None and isinstance(embedded, dict):
                 value = embedded.get(key)
-            if isinstance(value, list) and any(v for v in value):
-                return True
-            if isinstance(value, str) and value.strip():
-                return True
-            if isinstance(value, dict) and value:
+            if isinstance(value, list):
+                if any(has_text(v) for v in value):
+                    return True
+            elif isinstance(value, dict):
+                # The shape a full candidate record actually uses, and the one
+                # this got wrong: emails is {"primary": ..., "secondary": null}
+                # and phones is {"home": null, "cell": ..., "work": null}. The
+                # previous check accepted any non-empty dict, so a candidate
+                # with all three phone slots null reported has_phone=true - the
+                # dict is populated, it just has nothing in it. require_phone
+                # was therefore keeping people with no phone, which is the exact
+                # opposite of what a caller filtering on it wants.
+                if any(has_text(v) for v in value.values()):
+                    return True
+            elif has_text(value):
                 return True
         return False
 
@@ -380,6 +405,18 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
                 ),
             ),
         ] = DEFAULT_MAX_REQUESTS,
+        max_seconds: Annotated[
+            float,
+            Field(
+                gt=0,
+                le=300,
+                description=(
+                    "Wall-clock ceiling. The sweep stops here and returns a cursor. "
+                    "Default is below the 60s timeout most MCP clients enforce - raise "
+                    "it only if you know your client waits longer."
+                ),
+            ),
+        ] = DEFAULT_DEADLINE_SECONDS,
         cursor: Annotated[
             str | None,
             Field(description="next_cursor from a previous call, to continue that sweep."),
@@ -420,6 +457,7 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
         if status_filtered and "pipelines" not in wanted:
             wanted.append("pipelines")
 
+        deadline = Deadline(max_seconds)
         errors: dict[str, str] = {}
         requests_used = 0
         dropped_by: dict[str, int] = {}
@@ -435,64 +473,128 @@ def register(mcp: Any, client_getter: Callable[[], Any], *, enforce_auth: bool) 
         exhausted = True
         next_cursor: str | None = None
 
+        def absorb(payload: Any, field: str, value: str) -> int:
+            rows = _embedded_rows(payload)
+            for row in rows:
+                identifier = row.get("id")
+                if identifier is None:
+                    continue
+                key = str(identifier)
+                evidence = {"field": field, "predicate": "exact", "value": value}
+                existing = seeded.get(key)
+                if existing is None:
+                    row = dict(row)
+                    row["_matched"] = [evidence]
+                    seeded[key] = row
+                else:
+                    existing["_matched"].append(evidence)
+            return len(rows)
+
         while seed_index < len(plan):
             field, value = plan[seed_index]
-            if requests_used >= max_requests:
+            # Budget OR clock. Whichever runs out first, the answer so far is
+            # worth more than the error a client timeout would produce.
+            if requests_used >= max_requests or deadline.expired:
                 exhausted = False
                 next_cursor = _encode_cursor(seed_index, page)
+                if deadline.expired:
+                    errors["deadline"] = (
+                        f"stopped after {max_seconds:g}s with {requests_used} requests "
+                        f"spent; pass next_cursor to continue"
+                    )
                 break
 
+            # The first page is the only one that has to be sequential: it is
+            # what tells us how many there are.
             try:
-                payload = await client.request(
+                first = await client.request(
                     "POST",
                     "/candidates/search",
                     json={"field": field, "filter": "exactly", "value": value},
                     params={"per_page": SEED_PAGE_SIZE, "page": page},
                 )
                 requests_used += 1
-                # The sweep is the slow part and the caller cannot see it. Its
-                # budget is the only honest denominator - the account's true
-                # size is exactly what this is trying to find out.
-                #
-                # The seed VALUE is deliberately absent from this message.
-                # states/cities are harmless, but seed_field/seed_values are
-                # arbitrary, so a caller resolving by email would otherwise put
-                # that address into a progress notification. Issue #21: no
-                # candidate names or contact information in progress. Position
-                # in the plan says as much and leaks nothing.
-                await _progress(
-                    requests_used,
-                    max_requests,
-                    f"seeding {seed_index + 1}/{len(plan)}, page {page}",
-                )
             except CATSAPIError as exc:
                 errors[f"seed:{field}={value}:page:{page}"] = str(exc)
                 seed_index += 1
                 page = 1
                 continue
 
-            rows = _embedded_rows(payload)
-            scanned += len(rows)
-            for row in rows:
-                identifier = row.get("id")
-                if identifier is None:
-                    continue
-                key = str(identifier)
-                existing = seeded.get(key)
-                if existing is None:
-                    row = dict(row)
-                    row["_matched"] = [{"field": field, "predicate": "exact", "value": value}]
-                    seeded[key] = row
-                else:
-                    existing["_matched"].append(
-                        {"field": field, "predicate": "exact", "value": value}
-                    )
+            scanned += absorb(first, field, value)
+            # The seed VALUE is deliberately absent from progress messages.
+            # states/cities are harmless, but seed_field/seed_values are
+            # arbitrary, so a caller resolving by email would otherwise put that
+            # address into a notification. Issue #21. Position says as much.
+            await _progress(
+                requests_used, max_requests, f"seeding {seed_index + 1}/{len(plan)}"
+            )
 
-            if rows and _has_next_page(payload):
-                page += 1
-            else:
-                seed_index += 1
-                page = 1
+            # CATS reports the size of the match, so the remaining pages are
+            # known rather than discovered one round trip at a time. Walking
+            # them sequentially is what made this tool time out: a province
+            # with 1,094 candidates is eleven pages, and eleven sequential CATS
+            # calls at over a second each is most of a client's patience spent
+            # before a single candidate has been looked at. The page numbers
+            # are independent, so they go out together.
+            # `total` is a hint for how wide to fan out, not the authority on
+            # when to stop. A link to a next page outranks it: if the two ever
+            # disagree, believing `total` would silently truncate the sweep and
+            # report the short answer as complete, which is the one failure this
+            # tool must not have.
+            total = first.get("total") if isinstance(first, dict) else None
+            last_page = page
+            if isinstance(total, int) and total > 0:
+                last_page = max(page, -(-total // SEED_PAGE_SIZE))
+
+            page_budget = max(0, max_requests - requests_used)
+            # NOT `wanted` - that name already holds the include list, and
+            # shadowing it here silently skipped Phase C entirely.
+            page_numbers = [n for n in range(page + 1, last_page + 1)][:page_budget]
+            more_after = _has_next_page(first)
+
+            if page_numbers:
+                semaphore = asyncio.Semaphore(CONCURRENCY)
+
+                async def fetch_page(number: int, field=field, value=value) -> Any:
+                    async with semaphore:
+                        try:
+                            return number, await client.request(
+                                "POST",
+                                "/candidates/search",
+                                json={"field": field, "filter": "exactly", "value": value},
+                                params={"per_page": SEED_PAGE_SIZE, "page": number},
+                            )
+                        except CATSAPIError as exc:
+                            errors[f"seed:{field}={value}:page:{number}"] = str(exc)
+                            return number, None
+
+                fetched = await asyncio.gather(*(fetch_page(n) for n in page_numbers))
+                for number, payload in fetched:
+                    requests_used += 1
+                    if payload is not None:
+                        scanned += absorb(payload, field, value)
+                highest = max((n for n, pl in fetched if pl is not None), default=page)
+                more_after = any(
+                    _has_next_page(pl) for n, pl in fetched if pl is not None and n == highest
+                )
+                await _progress(
+                    requests_used, max_requests, f"seeded {seed_index + 1}/{len(plan)}"
+                )
+
+            reached = page_numbers[-1] if page_numbers else page
+            if reached < last_page or more_after:
+                # Either the budget ran out inside this seed, or CATS says there
+                # is another page beyond what `total` implied. Keep walking this
+                # seed rather than advancing past it.
+                if requests_used >= max_requests or deadline.expired:
+                    exhausted = False
+                    next_cursor = _encode_cursor(seed_index, reached + 1)
+                    break
+                page = reached + 1
+                continue
+
+            seed_index += 1
+            page = 1
 
         deduplicated = scanned - len(seeded)
 
