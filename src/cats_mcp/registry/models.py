@@ -59,6 +59,13 @@ class Transform(str, Enum):
     #: entirely produced a 500 as well - it is required. Verified against the
     #: live API; see issue #15.
     TO_CANDIDATE_DATA_ITEM = "to_candidate_data_item"
+    #: "Acme Mining" -> {"name": "Acme Mining", "linked": False}. CATS work
+    #: history attaches an employer through a nested object, not a flat
+    #: `company` field - sending the bare string produced "employer.name must
+    #: not be empty" and "employer.linked must be of type boolean" at once.
+    #: `linked` is always False here: this adapter has no company id to link
+    #: to from a plain name. Verified against the live API.
+    TO_EMPLOYER = "to_employer"
 
 
 def apply_transform(transform: Transform, value: Any) -> Any:
@@ -74,6 +81,8 @@ def apply_transform(transform: Transform, value: Any) -> Any:
         return int(value)
     if transform is Transform.TO_CANDIDATE_DATA_ITEM:
         return {"id": value, "type": "candidate"}
+    if transform is Transform.TO_EMPLOYER:
+        return {"name": value, "linked": False}
     return value
 
 

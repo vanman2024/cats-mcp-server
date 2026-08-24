@@ -15,7 +15,7 @@ from cats_mcp.registry.models import (
     ResponseStrategy,
     Safety,
     ToolSpec,
-    Transform,  # noqa: F401  (used by some specs)
+    Transform,
     Verification,
 )
 
@@ -941,8 +941,14 @@ SPECS: list[ToolSpec] = [
             Param(
                 name="company",
                 annotation=str,
-                description="Company name",
+                description=(
+                    "Company name. Sent as CATS's employer object "
+                    "({'name': ..., 'linked': false}) - a plain name with no link to an "
+                    "actual Company record."
+                ),
                 location=ParamLocation.BODY,
+                wire_name="employer",
+                transform=Transform.TO_EMPLOYER,
             ),
             Param(
                 name="title",
