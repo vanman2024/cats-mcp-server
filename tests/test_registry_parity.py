@@ -170,6 +170,19 @@ INJECTED_PAGINATION_PARAMS = {"page", "per_page"}
 INTENTIONALLY_RESHAPED = {"create_task", "update_task"}
 
 
+#: Tools whose description changed to document a wire-name/transform fix, with
+#: no change to which parameters exist, their types or which are required.
+#:
+#: create_candidate_work_history sent `company` as a flat string; CATS wants
+#: an employer object ({"name": ..., "linked": false}) and rejected the flat
+#: shape with "employer.name must not be empty" and "employer.linked must be
+#: of type boolean" at once. The parameter itself is unchanged - same name,
+#: same type, still required - only where it goes on the wire changed, which
+#: the description now says. Asserted against the outgoing request body in
+#: tests/test_work_history_schema.py.
+INTENTIONALLY_REDOCUMENTED = {"create_candidate_work_history"}
+
+
 INTENTIONALLY_REMOVED_PARAMS: dict[str, set[str]] = {
     "create_candidate": {"email", "phone"},
     "update_candidate": {"email", "phone"},
@@ -249,7 +262,7 @@ async def test_untouched_tools_are_still_byte_identical(registered_tools, expect
     for name in sorted(set(expected) & set(registered_tools)):
         if name in INTENTIONALLY_REWORDED or name in INTENTIONALLY_REMOVED_PARAMS:
             continue
-        if name in INTENTIONALLY_RESHAPED:
+        if name in INTENTIONALLY_RESHAPED or name in INTENTIONALLY_REDOCUMENTED:
             continue
         if _injected(name):
             continue  # gained shaping or pagination params, checked separately
