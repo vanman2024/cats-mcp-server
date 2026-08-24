@@ -48,7 +48,13 @@ SUMMARY_FIELDS: dict[str, list[str]] = {
     "job": ["id", "title", "status_id", "city", "state", "company_id", "date_modified"],
     "company": ["id", "name", "city", "state", "phone", "date_modified"],
     "contact": ["id", "first_name", "last_name", "title", "company_id", "date_modified"],
-    "activity": ["id", "type", "notes", "date_created", "regarding_id"],
+    # `annotation` carries the content; `notes` is almost always null.
+    # Measured on a live account: annotation populated on 363 of 389 recent
+    # activities (93%), notes on 28 (7%). Projecting only notes returned a
+    # list of dates and the word "email" with the story discarded -
+    # "Submitted candidate to Cody Roy for Heavy Duty Mechanic (Northern, BC)"
+    # lives in annotation.
+    "activity": ["id", "type", "annotation", "notes", "date_created", "regarding_id"],
     "pipeline": ["id", "candidate_id", "job_id", "status_id", "rating", "date_modified"],
     "task": ["id", "title", "due_date", "is_completed"],
     "tag": ["id", "title"],

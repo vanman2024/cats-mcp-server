@@ -2,8 +2,8 @@
 
 # Tool Coverage
 
-**207 tools total**: 197 CATS endpoint tools, 
-9 composite read primitives, and 1 status tool.
+**214 tools total**: 197 CATS endpoint tools, 
+16 composite read primitives, and 1 status tool.
 
 Plus 5 resources, 1 resource template and 
 5 prompts - see below.

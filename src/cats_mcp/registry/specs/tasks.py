@@ -76,46 +76,76 @@ SPECS: list[ToolSpec] = [
         response=ResponseStrategy.RAW,
         toolset="tasks",
         params=(
+            # A CATS task has no title field. It was accepted, silently
+            # discarded, and never appeared on the stored record - so the one
+            # thing a caller most expects to survive was the one thing thrown
+            # away. `description` is the task's content, and CATS requires it
+            # ("description must not be empty"). Verified live; see issue #15.
             Param(
-                name="title",
+                name="description",
                 annotation=str,
-                description="Task title",
+                description="What the task says. Required by CATS; this is the task's text.",
                 location=ParamLocation.BODY,
             ),
+            # CATS stores the due date as date_due. Sent as due_date it was
+            # accepted with a 201 and then silently dropped - the task existed
+            # with no due date and nothing said so. That is the worst shape a
+            # bug can take here, and it is why this mapping is tested against
+            # the outgoing body rather than the spec.
             Param(
                 name="due_date",
                 annotation=str | None,
-                description="Due date in ISO format (optional)",
+                description="Due date, ISO format (YYYY-MM-DD). Optional.",
                 location=ParamLocation.BODY,
+                wire_name="date_due",
                 default=None,
             ),
+            # Required, and not a scalar field. A task attaches to a record
+            # through data_item; sending candidate_id produced a 500, and so
+            # did omitting the association entirely. The transform builds the
+            # object so callers keep passing an id.
             Param(
                 name="candidate_id",
-                annotation=int | None,
-                description="Associated candidate ID (optional)",
+                annotation=int,
+                description="Candidate the task is about. Required by CATS.",
                 location=ParamLocation.BODY,
-                default=None,
+                wire_name="data_item",
+                transform=Transform.TO_CANDIDATE_DATA_ITEM,
             ),
-            Param(
-                name="job_id",
-                annotation=int | None,
-                description="Associated job ID (optional)",
-                location=ParamLocation.BODY,
-                default=None,
-            ),
+            # CATS names this assigned_to_id on the wire. Without the mapping the
+            # body carried "assigned_to", the required field arrived empty, and
+            # CATS answered "assigned_to_id must be positive" - an error that
+            # reads like a bad value when the field was never sent at all.
+            #
+            # Required, not optional: that same 400 is what CATS returns when it
+            # is missing, so offering it as optional only defers the failure.
             Param(
                 name="assigned_to",
-                annotation=int | None,
-                description="User ID to assign task to (optional)",
+                annotation=int,
+                description=(
+                    "CATS user id to assign the task to. Required by CATS. Find "
+                    "ids with list_users."
+                ),
                 location=ParamLocation.BODY,
-                default=None,
+                wire_name="assigned_to_id",
             ),
+            # Also required by CATS ("priority must not be optional"), and also
+            # missing from this spec entirely, so a caller could not supply it
+            # even knowing it was needed.
+            #
+            # The default is measured rather than guessed: all 100 tasks sampled
+            # from the live account carry priority 5. CATS does not document the
+            # scale, so this exposes the value the account already uses instead
+            # of inventing a range.
             Param(
-                name="description",
-                annotation=str | None,
-                description="Task description (optional)",
+                name="priority",
+                annotation=int,
+                description=(
+                    "Task priority. CATS requires a value and does not document "
+                    "the scale; 5 is what every existing task in the account uses."
+                ),
                 location=ParamLocation.BODY,
-                default=None,
+                default=5,
             ),
         ),
     ),
@@ -157,11 +187,15 @@ SPECS: list[ToolSpec] = [
                 location=ParamLocation.BODY,
                 default=None,
             ),
+            # Same wire-name mapping as create_task (issue #15). Optional here,
+            # because a partial update that does not mean to reassign should not
+            # have to resend the assignee.
             Param(
                 name="assigned_to",
                 annotation=int | None,
-                description="Updated assignee user ID (optional)",
+                description="CATS user id to reassign the task to.",
                 location=ParamLocation.BODY,
+                wire_name="assigned_to_id",
                 default=None,
             ),
             Param(

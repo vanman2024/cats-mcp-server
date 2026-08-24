@@ -419,3 +419,75 @@ async def test_a_missing_field_is_kept_and_reported():
     assert data["count"] == 2, "a projection gap must not empty the result"
     assert data["candidates"][0]["unevaluated"] == ["title"]
     assert "unevaluated:title" in data["errors"]
+
+
+# --- progress reporting -----------------------------------------------------
+
+
+async def test_the_sweep_reports_progress_to_the_client():
+    """Issue #11 asked for this and nothing had it: a forty-request sweep was
+    indistinguishable from a hung call until it returned.
+
+    This test exists because _progress deliberately swallows its own errors -
+    telemetry must never fail a real call - which is exactly the shape of code
+    that can quietly do nothing forever. So assert a client actually receives
+    something rather than trusting the helper runs.
+    """
+    seen: list[tuple[float, float | None, str | None]] = []
+
+    async def on_progress(progress, total, message):
+        seen.append((progress, total, message))
+
+    def handler(request):
+        if request.url.path.endswith("/candidates/search"):
+            return httpx2.Response(
+                200, json=collection([candidate(1, "HD Tech")], has_next=True)
+            )
+        return httpx2.Response(200, json={})
+
+    async with Client(build(handler), progress_handler=on_progress) as client:
+        await client.call_tool(
+            "query_candidate_facts",
+            {"states": ["BC"], "max_requests": 3, "include": []},
+        )
+
+    assert seen, "the sweep reported no progress at all"
+    assert [p for p, _, _ in seen] == sorted(p for p, _, _ in seen), "progress went backwards"
+    assert all(t == 3 for _, t, _ in seen), "total should be the request budget"
+    assert any("seeding" in (m or "") for _, _, m in seen), "no message named the work"
+
+
+async def test_progress_messages_never_carry_the_seed_value():
+    """Issue #21: no candidate names or contact information in progress.
+
+    states and cities are harmless, but seed_field/seed_values are arbitrary -
+    a caller resolving someone by email address would otherwise put that
+    address into a progress notification, which is a different audience from
+    the tool result. The first version of this shipped that way; this test is
+    why it will not ship that way again.
+    """
+    secret = "pat.mechanic@example.com"
+    seen: list[str] = []
+
+    async def on_progress(progress, total, message):
+        seen.append(message or "")
+
+    def handler(request):
+        if request.url.path.endswith("/candidates/search"):
+            return httpx2.Response(200, json=collection([candidate(1, "HD Tech")]))
+        return httpx2.Response(200, json={})
+
+    async with Client(build(handler), progress_handler=on_progress) as client:
+        await client.call_tool(
+            "query_candidate_facts",
+            {
+                "seed_field": "email",
+                "seed_values": [secret],
+                "include": [],
+                "max_requests": 2,
+            },
+        )
+
+    assert seen, "no progress reported, so the assertion below proves nothing"
+    leaked = [m for m in seen if secret in m or "example.com" in m]
+    assert not leaked, f"a seed value reached a progress message: {leaked}"

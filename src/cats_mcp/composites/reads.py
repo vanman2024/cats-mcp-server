@@ -17,10 +17,12 @@ These tools make the same work one tool call returning one compact table.
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
 
+from fastmcp.server.dependencies import get_context
 from pydantic import Field
 
 from cats_mcp.http.correlation import get_logger, set_run_id
@@ -64,6 +66,57 @@ INCLUDE_OPTIONS: dict[str, str] = {
 PER_CANDIDATE_INCLUDES = frozenset({"identity", "custom_fields", "pipelines"})
 
 
+#: Wall-clock ceiling for one composite call, in seconds.
+#:
+#: Set below the 60s timeout MCP clients commonly enforce. The request budget
+#: alone does not bound duration: a sweep is sequential, and CATS responses run
+#: over a second each, so a 25-request budget is 30-50 seconds of work before a
+#: single candidate is enriched. query_candidate_facts hit exactly that and was
+#: killed by the client at 60s - which throws away every request already spent
+#: and tells the caller nothing, when the tool was perfectly capable of
+#: returning a partial answer and a cursor.
+DEFAULT_DEADLINE_SECONDS = 45.0
+
+
+class Deadline:
+    """A wall-clock budget, alongside the request budget.
+
+    Being killed by a client is the worst available outcome: the work is lost,
+    the requests are still spent against the hourly allowance, and the caller
+    cannot tell a slow account from a broken tool. Stopping early and saying so
+    is strictly better, and the cursor already exists to make it resumable.
+    """
+
+    def __init__(self, seconds: float = DEFAULT_DEADLINE_SECONDS) -> None:
+        self._end = time.monotonic() + max(1.0, seconds)
+
+    @property
+    def expired(self) -> bool:
+        return time.monotonic() >= self._end
+
+    @property
+    def remaining(self) -> float:
+        return max(0.0, self._end - time.monotonic())
+
+
+async def _progress(done: float, total: float | None = None, message: str | None = None) -> None:
+    """Tell the caller how far along a multi-request tool is, if anyone is listening.
+
+    Issue #11 asked for this and nothing here had it: a query that spends forty
+    requests sweeping an account looked identical to a hung one until it
+    returned. FastMCP excludes the context from the tool schema, so this costs
+    the model nothing and is not something it can be talked into setting.
+
+    Deliberately swallowing. Progress is a courtesy; the data is the job. A
+    client that never asked for progress, or a direct in-process call with no
+    request behind it, must not turn a completed sweep into an error.
+    """
+    try:
+        await get_context().report_progress(done, total, message)
+    except Exception:  # noqa: BLE001 - see docstring; never fail a call over telemetry
+        pass
+
+
 async def _gather_by_id(
     ids: list[int | str],
     fetch: Callable[[int | str], Any],
@@ -83,6 +136,9 @@ async def _gather_by_id(
                 results[str(identifier)] = await fetch(identifier)
             except CATSAPIError as exc:
                 errors[str(identifier)] = str(exc)
+            # Reported here rather than per tool: every batch composite fans out
+            # through this function, so one call covers all of them.
+            await _progress(len(results) + len(errors), len(ids))
 
     await asyncio.gather(*(one(i) for i in ids))
     return results, errors
@@ -193,11 +249,24 @@ async def _status_titles(client: Any) -> tuple[dict[str, str], int]:
 
     A status id is account-specific and means nothing to a reader: "6377104"
     does not say Placed. Resolving it is normalization, which is the adapter's
-    job, and it costs one request that the reference-data cache serves for ten
-    minutes afterwards.
+    job.
 
-    A failure here is not worth failing the call over - the ids are still
-    returned, just unlabelled.
+    Two requests deep, not one, because GET /pipelines/workflows does not embed
+    statuses. This function used to read `workflow["statuses"]` straight off the
+    list response and return whatever it found - which on a real account was
+    nothing at all. The live workflow row carries only `_links`, `id`, `title`,
+    `is_default` and `date_modified`, so the loop ran three times over an empty
+    list and returned {}. Every status id in every composite came back
+    unlabelled, and because unresolvable ids are deliberately passed through
+    rather than raising, it looked exactly like an account whose workflows
+    happened to be unnamed. Forty titles were resolvable the whole time.
+
+    resources/context.py already fetched the statuses per workflow; this is the
+    same two-step, brought over. The extra requests are per workflow, not per
+    call site, and the reference-data cache serves them for ten minutes.
+
+    A failure is still not worth failing the call over - the ids are returned
+    unlabelled, which is the honest degradation.
     """
     try:
         payload = await client.request("GET", "/pipelines/workflows")
@@ -205,12 +274,32 @@ async def _status_titles(client: Any) -> tuple[dict[str, str], int]:
         logger.warning("could not resolve pipeline status titles: %s", exc)
         return {}, 1
 
+    requests_used = 1
     titles: dict[str, str] = {}
-    for workflow in _embedded_rows(payload):
-        for status in workflow.get("statuses") or []:
+
+    def absorb(rows: Any) -> None:
+        for status in rows or []:
             if isinstance(status, dict) and status.get("id") is not None:
                 titles[str(status["id"])] = status.get("title") or status.get("name") or ""
-    return titles, 1
+
+    for workflow in _embedded_rows(payload):
+        # Kept for accounts that DO embed them - cheaper, and harmless where
+        # the key is absent.
+        absorb(workflow.get("statuses"))
+        workflow_id = workflow.get("id")
+        if workflow_id is None or workflow.get("statuses"):
+            continue
+        try:
+            statuses = await client.request(
+                "GET", f"/pipelines/workflows/{workflow_id}/statuses"
+            )
+            requests_used += 1
+        except CATSAPIError as exc:
+            logger.warning("could not resolve statuses for workflow %s: %s", workflow_id, exc)
+            continue
+        absorb(_embedded_rows(statuses))
+
+    return titles, requests_used
 
 
 def _pipeline_rows(payload: Any, titles: dict[str, str]) -> list[dict[str, Any]]:

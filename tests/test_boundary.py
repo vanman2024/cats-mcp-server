@@ -220,6 +220,29 @@ BANNED_VERDICT_KEYS: frozenset[str] = frozenset(
 )
 
 
+def _schema_key_names(schema) -> set[str]:
+    """Every property name a JSON Schema declares, including under $defs.
+
+    Pydantic hoists nested models into $defs and leaves a $ref behind, so
+    walking `properties` alone sees the top level and nothing else.
+    """
+    names: set[str] = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            props = node.get("properties")
+            if isinstance(props, dict):
+                names.update(props)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(schema or {})
+    return names
+
+
 def _find_banned_keys(value, path="") -> list[str]:
     """Walk a tool result recursively, collecting any banned key with its path."""
     found: list[str] = []
@@ -355,6 +378,13 @@ COMPOSITE_CALLS: tuple[tuple[str, dict], ...] = (
     ("get_candidate_activity", {"candidate_ids": [42]}),
     ("find_candidate_resume", {"candidate_id": 42}),
     ("query_candidate_facts", {"states": ["BC"]}),
+    ("lookup_candidate", {"emails": ["pat@example.com"]}),
+    ("resolve_job", {"job_id": 7}),
+    ("get_candidate_timeline", {"candidate_ids": [42]}),
+    ("get_job_recruiting_snapshot", {"job_ids": [7]}),
+    ("find_followup_facts", {"job_ids": [7], "older_than_hours": 24}),
+    ("audit_candidate_data", {"candidate_ids": [42]}),
+    ("get_job_requirements", {"job_ids": [7]}),
 )
 
 
@@ -372,9 +402,24 @@ async def test_composite_outputs_carry_no_verdict_shaped_keys(tool_name, argumen
     """
     async with Client(build(_stub_handler)) as client:
         result = await client.call_tool(tool_name, arguments)
+        schema = next(t.output_schema for t in await client.list_tools() if t.name == tool_name)
 
-    hits = _find_banned_keys(result.data)
+    # structured_content, NOT result.data. Once a tool declares an
+    # output_schema and returns ToolResult, FastMCP rebuilds result.data into a
+    # synthesised pydantic dataclass - and _find_banned_keys only descends
+    # dicts and lists, so it walked nothing and passed vacuously. The guard was
+    # dead for every typed composite while still reporting green. Three
+    # independent agents converting tools under #17 each reported it.
+    hits = _find_banned_keys(result.structured_content)
     assert not hits, f"{tool_name} returned verdict-shaped keys: {hits}"
+
+    # And the declared schema, because the payload alone is not enough: a field
+    # named `score` that happens to be empty on this fixture never appears in
+    # the result, so a payload-only walk would pass while the tool advertised
+    # the key to every client that read its schema.
+    declared = _schema_key_names(schema)
+    banned = sorted(k for k in declared if k.lower() in BANNED_VERDICT_KEYS)
+    assert not banned, f"{tool_name} declares verdict-shaped fields: {banned}"
 
 
 async def test_every_composite_tool_is_covered_above():
