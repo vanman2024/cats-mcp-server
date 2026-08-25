@@ -167,7 +167,14 @@ INJECTED_PAGINATION_PARAMS = {"page", "per_page"}
 #: snapshot: it is the wire names, not the parameter names, that were wrong.
 #: update_task only gained the assigned_to_id mapping and a clearer
 #: description; its parameters are otherwise unchanged.
-INTENTIONALLY_RESHAPED = {"create_task", "update_task"}
+#:
+#: create_candidate and update_candidate gained `title` and
+#: `current_employer` - documented, plain string fields on both endpoints
+#: (https://docs.catsone.com/api/v3/#candidates) that were simply missing
+#: from both specs. update_candidate could previously change only a
+#: candidate's name; there was no way to fix a wrong title or employer once a
+#: record existed. Additive - existing params are unchanged.
+INTENTIONALLY_RESHAPED = {"create_task", "update_task", "create_candidate", "update_candidate"}
 
 
 #: Tools whose description changed to document a wire-name/transform fix, with

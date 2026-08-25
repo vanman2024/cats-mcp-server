@@ -110,6 +110,20 @@ SPECS: list[ToolSpec] = [
                 location=ParamLocation.BODY,
             ),
             Param(
+                name="title",
+                annotation=str | None,
+                description="Current job title (optional)",
+                location=ParamLocation.BODY,
+                default=None,
+            ),
+            Param(
+                name="current_employer",
+                annotation=str | None,
+                description="Current employer name (optional)",
+                location=ParamLocation.BODY,
+                default=None,
+            ),
+            Param(
                 name="resume_url",
                 annotation=str | None,
                 description="URL to resume document (optional)",
@@ -119,7 +133,13 @@ SPECS: list[ToolSpec] = [
             Param(
                 name="linkedin_url",
                 annotation=str | None,
-                description="LinkedIn profile URL (optional)",
+                description=(
+                    "LinkedIn profile URL (optional). UNVERIFIED: CATS's documented "
+                    "candidate schema has no linkedin_url field - the real field is "
+                    "social_media_urls, an array whose item shape is undocumented. "
+                    "This may be silently discarded the way email/phone once were. "
+                    "See issue #27."
+                ),
                 location=ParamLocation.BODY,
                 default=None,
             ),
@@ -132,8 +152,8 @@ SPECS: list[ToolSpec] = [
         method="PUT",
         endpoint="/candidates/{candidate_id}",
         description=(
-            "Update an existing candidate's name. Only the fields you supply are "
-            "modified.\n\n"
+            "Update an existing candidate's name, title or current employer. Only "
+            "the fields you supply are modified.\n\n"
             "Email and phone are NOT changed here. CATS stores them as "
             "sub-resources, and a flat `email` or `phone` in this body is "
             "accepted and silently discarded - verified against a live account, "
@@ -163,6 +183,20 @@ SPECS: list[ToolSpec] = [
                 name="last_name",
                 annotation=str | None,
                 description="Updated last name (optional)",
+                location=ParamLocation.BODY,
+                default=None,
+            ),
+            Param(
+                name="title",
+                annotation=str | None,
+                description="Updated job title (optional)",
+                location=ParamLocation.BODY,
+                default=None,
+            ),
+            Param(
+                name="current_employer",
+                annotation=str | None,
+                description="Updated current employer name (optional)",
                 location=ParamLocation.BODY,
                 default=None,
             ),
