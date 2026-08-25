@@ -188,6 +188,26 @@ Resumes, attachments, activities, pipelines and applications are never included
 in a list at any level. They are unbounded in size and each has its own tool -
 `download_attachment` returns the actual document for the model to read.
 
+## Known gap: attachment uploads are unverified
+
+`upload_candidate_attachment` sends `file_url` in a JSON body. Nobody has
+confirmed that against a live account, and CATS's documented endpoint
+(`POST /candidates/{id}/attachments?filename=...`, filename as a *query*
+param) reads like a binary upload, not a fetch-this-url request - the same
+kind of never-tried spec that `create_task` and `create_candidate_work_history`
+turned out to be. Fix only after a live attempt produces a real error to fix
+against; do not guess the shape. See [issue #25](https://github.com/vanman2024/cats-mcp-server/issues/25).
+
+That issue also tracks the planned use of this tool: a **standalone script,
+outside this repo**, that watches a local downloads folder for LinkedIn
+profile PDF exports, extracts the profile URL printed in the document, and
+resolves the candidate via `lookup_candidate`'s exact `profile_urls` match -
+never by name. An unresolved or ambiguous match is left for a human; nothing
+here guesses which candidate a loose file belongs to. This adapter owns no
+filesystem access or scheduling by design (see "What this is, and is not"
+above), so that script runs locally on its own schedule and calls this
+server, rather than living in `src/cats_mcp/`.
+
 ## Rate limits
 
 The CATS standard is **500 requests/hour**. Some accounts are raised, so the
