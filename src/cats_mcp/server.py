@@ -21,6 +21,7 @@ from fastmcp import FastMCP
 
 from cats_mcp.auth.verifier import auth_is_enforced, build_auth_provider
 from cats_mcp.composites import audit as composite_audit
+from cats_mcp.composites import custom_field_values as composite_custom_field_values
 from cats_mcp.composites import followup as composite_followup
 from cats_mcp.composites import jobreqs as composite_jobreqs
 from cats_mcp.composites import jobsnapshot as composite_jobsnapshot
@@ -35,6 +36,7 @@ from cats_mcp.credentials.env import EnvCredentialProvider
 from cats_mcp.discovery.profiles import transforms_for
 from cats_mcp.http.client import CATSClient
 from cats_mcp.http.correlation import configure_logging, get_logger
+from cats_mcp.http.custom_fields import CustomFieldResolver
 from cats_mcp.http.site import UIDomainResolver
 from cats_mcp.observability import build_middleware
 from cats_mcp.registry.build import register_all
@@ -138,6 +140,10 @@ def create_server(
     # still overrides, for a vanity domain or to skip the lookup entirely.
     ui_domain = UIDomainResolver(client_getter, credentials, settings.ui_base_url)
 
+    # Custom field definitions are account configuration - cached per account,
+    # never globally, for the same cross-tenant reason as the UI domain above.
+    custom_fields = CustomFieldResolver(client_getter, credentials)
+
     registered = register_all(
         mcp,
         selected,
@@ -181,6 +187,11 @@ def create_server(
         )
         registered += composite_jobreqs.register(
             mcp, client_getter, enforce_auth=enforce_auth
+        )
+        # Custom field values, labelled with the name and type CATS never
+        # sends alongside them - see http/custom_fields.py.
+        registered += composite_custom_field_values.register(
+            mcp, client_getter, custom_fields, enforce_auth=enforce_auth
         )
 
     _register_status_tool(mcp, settings, credentials, cats_client, registered)

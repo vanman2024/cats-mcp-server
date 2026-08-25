@@ -385,6 +385,8 @@ COMPOSITE_CALLS: tuple[tuple[str, dict], ...] = (
     ("find_followup_facts", {"job_ids": [7], "older_than_hours": 24}),
     ("audit_candidate_data", {"candidate_ids": [42]}),
     ("get_job_requirements", {"job_ids": [7]}),
+    ("get_candidate_custom_field_values", {"candidate_ids": [42]}),
+    ("get_job_custom_field_values", {"job_ids": [7]}),
 )
 
 
