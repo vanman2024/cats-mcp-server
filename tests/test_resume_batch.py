@@ -237,6 +237,78 @@ async def test_an_unreadable_format_is_counted_separately_from_a_read_one():
     assert "download_attachment" in unreadable[0]["note"]
 
 
+async def test_a_photographed_resume_is_reported_as_an_image_not_a_failure():
+    calls: list[str] = []
+    bodies = {901: b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 400}
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        path = request.url.path
+        calls.append(path)
+        if path.endswith("/attachments"):
+            return httpx2.Response(200, json=attachments_for(901, "resume_scan.jpg"))
+        return httpx2.Response(200, content=bodies[901])
+
+    payload = await call(build(handler), [1])
+    row = payload["resumes"][0]
+
+    assert row["found"] is True
+    assert row["outcome"] == "image"
+    assert payload["images"] == 1
+    # Readable, just not as text. It must not be counted as broken.
+    assert payload["unreadable"] == 0
+    assert "download_attachment" in row["note"]
+
+
+async def test_an_unnamed_photo_is_surfaced_rather_than_reported_as_no_resume():
+    """A photographed resume is often called IMG_4032.jpg and matches no heuristic.
+
+    Reporting only "no resume" would say a candidate has nothing on file while
+    their resume sits there as a photo. This does not guess it IS the resume -
+    an unflagged image is as likely to be a ticket - it reports that it exists.
+    """
+    calls: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        calls.append(request.url.path)
+        return httpx2.Response(
+            200,
+            json=collection(
+                "attachments",
+                [
+                    {
+                        "id": 901,
+                        "filename": "IMG_4032.jpg",
+                        "is_resume": False,
+                        "date_created": "2026-06-01T10:00:00+00:00",
+                    }
+                ],
+            ),
+        )
+
+    payload = await call(build(handler), [1])
+    row = payload["resumes"][0]
+
+    assert row["found"] is False
+    assert row["outcome"] == "none"
+    assert len(row["image_attachments"]) == 1
+    assert row["image_attachments"][0]["filename"] == "IMG_4032.jpg"
+    assert "IMG_4032.jpg" in row["note"] or "image attachment" in row["note"]
+    # No download was spent guessing.
+    assert not [path for path in calls if path.endswith("/download")]
+
+
+async def test_a_candidate_with_no_attachments_at_all_says_so_plainly():
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json=collection("attachments", []))
+
+    payload = await call(build(handler), [1])
+    row = payload["resumes"][0]
+
+    assert row["outcome"] == "none"
+    assert row["image_attachments"] == []
+    assert "no attachments" in row["note"].lower()
+
+
 async def test_one_candidate_failing_does_not_lose_the_others():
     calls: list[str] = []
     bodies = {902: docx_bytes(["Brady Anderson", "Millwright"])}

@@ -41,7 +41,7 @@ from cats_mcp.composites.reads import (
     _parse_iso,
     _project,
 )
-from cats_mcp.documents import Outcome, extract_text
+from cats_mcp.documents import IMAGE_EXTENSIONS, Outcome, extract_text
 from cats_mcp.http.correlation import get_logger, set_run_id
 from cats_mcp.http.resume_text import ResumeTextCache, account_key
 from cats_mcp.responses.shaping import SUMMARY_FIELDS
@@ -54,6 +54,12 @@ logger = get_logger(__name__)
 MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
 
 
+def _is_image_attachment(attachment: dict[str, Any]) -> bool:
+    filename = str(attachment.get("filename") or "").lower()
+    extension = filename.rsplit(".", 1)[-1] if "." in filename else ""
+    return extension in IMAGE_EXTENSIONS
+
+
 class ResumeRow(BaseModel):
     """One candidate's resume, or a precise account of why there isn't one."""
 
@@ -61,9 +67,11 @@ class ResumeRow(BaseModel):
     found: bool = Field(description="Whether an attachment that looks like a resume exists.")
     outcome: str = Field(
         description=(
-            "extracted, empty, unsupported, failed, or none. 'empty' on a PDF "
-            "means a scan with no text layer - the file exists and has to be read "
-            "as an image. 'none' means no resume-like attachment at all."
+            "extracted, image, empty, unsupported, failed, or none. 'image' means "
+            "the resume is a photograph or screenshot - readable, but only as an "
+            "image. 'empty' on a PDF means a scan with no text layer, which is the "
+            "same situation reached a different way. 'unsupported' means a format "
+            "nothing here can read. 'none' means no resume-like attachment at all."
         )
     )
     text: str = Field(default="", description="The resume as text. Empty unless outcome=extracted.")
@@ -87,6 +95,15 @@ class ResumeRow(BaseModel):
         default="",
         description="Why reading failed, or what was truncated. Empty on a clean extraction.",
     )
+    image_attachments: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Image attachments present when no resume was identified. A "
+            "photographed resume is often named IMG_4032.jpg and matches no "
+            "heuristic; these are reported so the caller can check rather than "
+            "conclude the candidate has nothing on file."
+        ),
+    )
 
 
 class ResumeBatchResult(BaseModel):
@@ -96,10 +113,17 @@ class ResumeBatchResult(BaseModel):
     count: int = Field(description="Rows returned.")
     requested: int = Field(description="Distinct candidate ids asked for.")
     extracted: int = Field(description="How many produced readable text.")
+    images: int = Field(
+        description=(
+            "How many resumes are photographs or screenshots. These are readable, "
+            "but only as images - fetch them with download_attachment. Counted "
+            "separately from unreadable because there is nothing wrong with them."
+        )
+    )
     unreadable: int = Field(
         description=(
-            "How many exist but could not be read - scans, unsupported formats, "
-            "corrupt files. Fetch these with download_attachment to read directly."
+            "How many exist but could not be read at all - scans with no text "
+            "layer, unsupported formats, corrupt files."
         )
     )
     missing: int = Field(description="How many have no resume-like attachment at all.")
@@ -129,12 +153,16 @@ def register(
             "Read a batch of candidates' resumes as text in one call. Use this "
             "instead of calling find_candidate_resume per person: it fetches "
             f"concurrently, extracts the text server-side, and handles up to {MAX_BATCH} "
-            "candidates at once. PDF, DOCX, HTML and plain text are read; anything "
-            "else is reported as unsupported rather than returned empty.\n\n"
+            "candidates at once. PDF, DOCX, HTML and plain text are read as text.\n\n"
             "Check `outcome` on every row before concluding anything about a "
-            "candidate. outcome='empty' on a PDF means a scanned document with no "
-            "text layer - the resume exists and is unread, which is not the same as "
-            "a thin resume. Those rows, and 'unsupported' and 'failed' ones, can be "
+            "candidate. A resume that could not be turned into text is not a thin "
+            "resume, it is an unread one. outcome='image' means a photograph or "
+            "screenshot, which is perfectly readable but only as an image. "
+            "outcome='empty' on a PDF means a scan with no text layer - the same "
+            "situation reached a different way. On outcome='none' rows, check "
+            "image_attachments: a photographed resume is often named IMG_4032.jpg "
+            "and matches no heuristic, so the candidate may have one after all. "
+            "Any of these can be "
             "fetched with download_attachment and read directly.\n\n"
             "Text for a given attachment is retained after the first read, so "
             "re-running a sweep costs no download for documents already seen."
@@ -190,15 +218,35 @@ def register(
                 method = "filename heuristic - nothing was flagged is_resume, this is a guess"
 
             if not pool:
+                # A photographed resume is often called IMG_4032.jpg, which
+                # matches neither the is_resume flag nor a filename hint. Saying
+                # only "no resume" would report a candidate as having nothing on
+                # file while their resume sits right there as a photo. Naming the
+                # images is honest without guessing: an unflagged image is as
+                # likely to be a ticket, a certificate or a profile photo, so
+                # this reports what exists and leaves the choice to the caller.
+                images = [a for a in attachments if _is_image_attachment(a)]
+                if images:
+                    note = (
+                        f"No attachment is flagged as a resume or named like one, "
+                        f"but this candidate has {len(images)} image attachment(s). "
+                        f"A photographed or screenshotted resume looks exactly like "
+                        f"this, and so does a ticket or a profile photo. Fetch one "
+                        f"with download_attachment to see which it is."
+                    )
+                elif attachments:
+                    note = "No attachment on this candidate looks like a resume."
+                else:
+                    note = "This candidate has no attachments."
+
                 return {
                     "candidate_id": str(candidate_id),
                     "found": False,
                     "outcome": "none",
-                    "note": (
-                        "No attachment on this candidate looks like a resume."
-                        if attachments
-                        else "This candidate has no attachments."
-                    ),
+                    "note": note,
+                    "image_attachments": [
+                        _project(a, SUMMARY_FIELDS["attachment"]) for a in images
+                    ],
                 }
 
             epoch = datetime.min.replace(tzinfo=timezone.utc)
@@ -256,13 +304,15 @@ def register(
         rows = [results[str(i)] for i in ids if str(i) in results]
         extracted = sum(1 for r in rows if r.get("outcome") == Outcome.EXTRACTED.value)
         missing = sum(1 for r in rows if r.get("outcome") == "none")
-        unreadable = len(rows) - extracted - missing
+        images = sum(1 for r in rows if r.get("outcome") == Outcome.IMAGE.value)
+        unreadable = len(rows) - extracted - missing - images
 
         return ResumeBatchResult(
             resumes=[ResumeRow(**r) for r in rows],
             count=len(rows),
             requested=len(unique),
             extracted=extracted,
+            images=images,
             unreadable=unreadable,
             missing=missing,
             cache_hits=cache_hits,

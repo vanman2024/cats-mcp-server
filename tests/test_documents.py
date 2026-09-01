@@ -152,10 +152,60 @@ def test_empty_bytes_report_empty():
     assert not result.ok
 
 
+# --- Photographed resumes -----------------------------------------------------
+
+JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 400
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 400
+
+
+@pytest.mark.parametrize(
+    "data,filename,expected",
+    [
+        (JPEG, "resume_scan.jpg", "JPEG"),
+        (PNG, "my_cv.png", "PNG"),
+        (b"RIFF\x00\x00\x00\x00WEBP" + b"\x00" * 200, "cv.webp", "WEBP"),
+        (b"\x00\x00\x00\x18ftypheic" + b"\x00" * 200, "photo.heic", "HEIC"),
+    ],
+)
+def test_an_image_resume_is_reported_as_an_image(data, filename, expected):
+    """People photograph their resume. That is a readable document, not a failure."""
+    result = extract_text(data, filename)
+
+    assert result.outcome is Outcome.IMAGE
+    assert result.parser == expected
+    assert "download_attachment" in result.note
+
+
+def test_image_is_distinct_from_unsupported():
+    """An image can be read - by a multimodal model. RTF cannot be read at all.
+
+    Collapsing these would tell a caller to give up on a resume it could
+    actually have looked at.
+    """
+    image = extract_text(JPEG, "resume.jpg")
+    unsupported = extract_text(b"{\\rtf1 whatever}", "resume.rtf")
+
+    assert image.outcome is Outcome.IMAGE
+    assert unsupported.outcome is Outcome.UNSUPPORTED
+
+
+def test_image_detected_by_bytes_when_the_extension_lies():
+    result = extract_text(JPEG, "resume.pdf")
+
+    assert result.outcome is Outcome.IMAGE
+    assert result.parser == "JPEG"
+
+
+def test_image_detected_by_extension_when_the_bytes_are_unfamiliar():
+    result = extract_text(b"\x00\x01\x02\x03 some encoding we do not know", "scan.tiff")
+
+    assert result.outcome is Outcome.IMAGE
+
+
 # --- Formats we knowingly do not handle ---------------------------------------
 
 
-@pytest.mark.parametrize("filename", ["old.doc", "notes.rtf", "photo.jpg"])
+@pytest.mark.parametrize("filename", ["old.doc", "notes.rtf", "archive.7z"])
 def test_unsupported_formats_say_so(filename):
     result = extract_text(b"\x00\x01 not a document at all", filename)
 

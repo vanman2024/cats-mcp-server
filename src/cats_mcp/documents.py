@@ -73,6 +73,7 @@ class Outcome(str, Enum):
 
     EXTRACTED = "extracted"
     EMPTY = "empty"
+    IMAGE = "image"
     UNSUPPORTED = "unsupported"
     FAILED = "failed"
 
@@ -197,6 +198,41 @@ def _extract_text(data: bytes) -> tuple[str, str]:
 _PDF_MAGIC = b"%PDF-"
 _ZIP_MAGIC = b"PK\x03\x04"
 
+#: Image signatures. A photographed or screenshotted resume is common - people
+#: send what their phone produced - and it is a document this server cannot turn
+#: into text but a multimodal model can read directly. That distinction is why
+#: IMAGE exists as an outcome separate from UNSUPPORTED.
+_IMAGE_MAGIC: tuple[tuple[bytes, str], ...] = (
+    (b"\xff\xd8\xff", "JPEG"),
+    (b"\x89PNG\r\n\x1a\n", "PNG"),
+    (b"GIF87a", "GIF"),
+    (b"GIF89a", "GIF"),
+    (b"BM", "BMP"),
+    (b"II*\x00", "TIFF"),
+    (b"MM\x00*", "TIFF"),
+)
+
+#: Extensions that mean an image even when the bytes are unavailable or odd.
+IMAGE_EXTENSIONS = frozenset(
+    {"jpg", "jpeg", "png", "gif", "webp", "tif", "tiff", "bmp", "heic", "heif"}
+)
+
+
+def _image_format(data: bytes, extension: str) -> str | None:
+    """The image format this looks like, or None if it is not an image."""
+    for signature, label in _IMAGE_MAGIC:
+        if data.startswith(signature):
+            return label
+    # RIFF....WEBP - the size field sits between the two markers.
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "WEBP"
+    # HEIC and friends put the brand at offset 4, after the box length.
+    if data[4:8] == b"ftyp" and data[8:12] in (b"heic", b"heix", b"heif", b"mif1"):
+        return "HEIC"
+    if extension in IMAGE_EXTENSIONS:
+        return extension.upper()
+    return None
+
 _BY_EXTENSION = {
     "pdf": (_extract_pdf, "PDF"),
     "docx": (_extract_docx, "DOCX"),
@@ -227,6 +263,22 @@ def extract_text(data: bytes, filename: str | None = None) -> Extraction:
 
     name = (filename or "").lower()
     extension = name.rsplit(".", 1)[-1] if "." in name else ""
+
+    # An image is not a failure to read, it is a document in a form this server
+    # cannot turn into text but a multimodal model can read as it is. Checked
+    # before the text parsers so a photographed resume never lands in
+    # UNSUPPORTED alongside formats nothing can read.
+    image = _image_format(data, extension)
+    if image is not None:
+        return Extraction(
+            Outcome.IMAGE,
+            parser=image,
+            note=(
+                f"This resume is a {image} image - a photograph or screenshot "
+                f"rather than a text document. There is no text to extract. "
+                f"Fetch it with download_attachment to read it as an image."
+            ),
+        )
 
     # Content wins over the filename, which is routinely wrong.
     if data.startswith(_PDF_MAGIC):
