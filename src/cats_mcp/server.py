@@ -29,6 +29,7 @@ from cats_mcp.composites import lookup as composite_lookup
 from cats_mcp.composites import query as composite_query
 from cats_mcp.composites import reads as composite_reads
 from cats_mcp.composites import resolve as composite_resolve
+from cats_mcp.composites import resumes as composite_resumes
 from cats_mcp.composites import timeline as composite_timeline
 from cats_mcp.config import Settings, load_settings
 from cats_mcp.credentials.base import CredentialProvider
@@ -37,6 +38,7 @@ from cats_mcp.discovery.profiles import transforms_for
 from cats_mcp.http.client import CATSClient
 from cats_mcp.http.correlation import configure_logging, get_logger
 from cats_mcp.http.custom_fields import CustomFieldResolver
+from cats_mcp.http.resume_text import ResumeTextCache
 from cats_mcp.http.site import UIDomainResolver
 from cats_mcp.observability import build_middleware
 from cats_mcp.registry.build import register_all
@@ -144,6 +146,11 @@ def create_server(
     # never globally, for the same cross-tenant reason as the UI domain above.
     custom_fields = CustomFieldResolver(client_getter, credentials)
 
+    # Extracted resume text, keyed per account by attachment id. Attachment
+    # bytes are immutable - a revised resume arrives as a new id - so this is
+    # cacheable in a way record data is not. See http/resume_text.py.
+    resume_text = ResumeTextCache()
+
     registered = register_all(
         mcp,
         selected,
@@ -192,6 +199,12 @@ def create_server(
         # sends alongside them - see http/custom_fields.py.
         registered += composite_custom_field_values.register(
             mcp, client_getter, custom_fields, enforce_auth=enforce_auth
+        )
+        # Resumes as text, in batch. Screening a shortlist one document at a
+        # time is the most expensive thing a caller can do against this API;
+        # see composites/resumes.py for the measurements.
+        registered += composite_resumes.register(
+            mcp, client_getter, credentials, resume_text, enforce_auth=enforce_auth
         )
 
     _register_status_tool(mcp, settings, credentials, cats_client, registered)
