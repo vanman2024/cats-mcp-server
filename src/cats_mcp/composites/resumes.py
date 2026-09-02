@@ -258,7 +258,7 @@ def register(
                 "selection_method": method,
             }
 
-            cached = cache.get(account, chosen.get("id"))
+            cached = await cache.get(account, chosen.get("id"))
             if cached is not None:
                 row.update(
                     outcome=cached.outcome.value,
@@ -287,7 +287,7 @@ def register(
 
             filename = getattr(binary, "filename", None) or chosen.get("filename")
             extraction = extract_text(data, filename)
-            cache.put(account, chosen["id"], extraction)
+            await cache.put(account, chosen["id"], extraction)
 
             row.update(
                 outcome=extraction.outcome.value,

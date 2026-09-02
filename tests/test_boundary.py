@@ -482,6 +482,10 @@ KNOWN_LARGE_LITERALS: frozenset[tuple[str, int, int]] = frozenset(
         # Character ceiling on extracted resume text, not an id. A resume runs
         # to a few thousand characters; this bounds a pathological document.
         ("documents.py", 53, 40_000),
+        # 48 hours in seconds: how long extracted resume text may persist in a
+        # shared cache. A retention bound, not a staleness one - see
+        # http/resume_text.py.
+        ("config.py", 139, 172_800),
     }
 )
 

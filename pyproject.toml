@@ -43,6 +43,19 @@ code-mode = [
     "fastmcp[code-mode]==4.0.0b2",
 ]
 
+# CATS_RESUME_CACHE_URL requires one of these, matching the URL scheme. Without
+# it the server refuses to start rather than silently keeping resume text in
+# process memory while the operator believes it is shared.
+#
+# py-key-value-aio already ships as a fastmcp dependency; these extras add only
+# the backend client. Pinned exactly for the same prerelease reason as above.
+redis-cache = [
+    "py-key-value-aio[redis]==0.4.5",
+]
+disk-cache = [
+    "py-key-value-aio[disk]==0.4.5",
+]
+
 [tool.uv]
 # Required for fastmcp==4.0.0b2. Scoped by the exact pins above.
 prerelease = "allow"

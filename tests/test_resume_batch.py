@@ -40,7 +40,9 @@ def build(handler, cache: ResumeTextCache | None = None):
         mcp,
         lambda: client,
         StubCredentials(),
-        cache or ResumeTextCache(),
+        # `is not None`, never `or`: a cold cache used to be falsy, which
+        # silently replaced a configured one with a fresh empty cache.
+        cache if cache is not None else ResumeTextCache(),
         enforce_auth=False,
     )
     return mcp
@@ -329,6 +331,93 @@ async def test_one_candidate_failing_does_not_lose_the_others():
     assert payload["extracted"] == 1
     assert "Brady Anderson" in payload["resumes"][0]["text"]
     assert payload["execution"]["errors"], "the failed candidate should be reported"
+
+
+# --- The shared store tier ----------------------------------------------------
+
+
+async def test_a_restart_keeps_the_text_when_a_store_is_configured():
+    """Process memory is gone on restart; a store is what makes it survive.
+
+    Simulated the way it actually happens: a brand new ResumeTextCache, empty
+    memory, same backing store - which is also what a second replica looks like.
+    """
+    from key_value.aio.stores.memory import MemoryStore
+
+    store = MemoryStore()
+    calls: list[str] = []
+    bodies = {901: docx_bytes(["Brad Willows", "Journeyman HD Mechanic"])}
+    handler = make_handler(bodies, calls)
+
+    before = await call(build(handler, ResumeTextCache(store)), [1])
+    assert before["resumes"][0]["from_cache"] is False
+
+    # The process restarts. New cache object, nothing in memory, same store.
+    after = await call(build(handler, ResumeTextCache(store)), [1])
+
+    assert after["resumes"][0]["from_cache"] is True
+    assert after["resumes"][0]["text"] == before["resumes"][0]["text"]
+    assert sum(1 for path in calls if path.endswith("/download")) == 1
+
+
+async def test_a_broken_store_degrades_to_a_download_rather_than_failing():
+    """A cache is an optimisation. It must never be able to fail a real call."""
+
+    class BrokenStore:
+        async def get(self, key, *, collection=None):
+            raise RuntimeError("redis is down")
+
+        async def put(self, key, value, *, collection=None, ttl=None):
+            raise RuntimeError("redis is down")
+
+    calls: list[str] = []
+    bodies = {901: docx_bytes(["Brad Willows", "Journeyman HD Mechanic"])}
+    mcp = build(make_handler(bodies, calls), ResumeTextCache(BrokenStore()))
+
+    payload = await call(mcp, [1])
+
+    assert payload["extracted"] == 1
+    assert "Brad Willows" in payload["resumes"][0]["text"]
+
+
+async def test_an_entry_written_by_an_older_version_is_treated_as_a_miss():
+    """A shared store outlives a deployment and can hold entries it no longer understands."""
+    from key_value.aio.stores.memory import MemoryStore
+
+    store = MemoryStore()
+    await store.put(
+        "unresolved:901",
+        {"outcome": "a_shape_this_version_does_not_know", "text": "stale"},
+        collection="cats-resume-text",
+    )
+
+    calls: list[str] = []
+    bodies = {901: docx_bytes(["Brad Willows", "Journeyman HD Mechanic"])}
+    payload = await call(build(make_handler(bodies, calls), ResumeTextCache(store)), [1])
+
+    assert payload["extracted"] == 1
+    assert "Brad Willows" in payload["resumes"][0]["text"]
+    assert "stale" not in payload["resumes"][0]["text"]
+
+
+# --- Configuration ------------------------------------------------------------
+
+
+def test_an_unsupported_cache_url_fails_at_startup():
+    """Not on somebody's sweep. A bad cache URL should look like what it is."""
+    import pytest
+
+    from cats_mcp.http.resume_text import ResumeCacheUnavailableError, build_store
+
+    with pytest.raises(ResumeCacheUnavailableError, match="not a supported cache URL"):
+        build_store("memcache://localhost:11211")
+
+
+def test_no_url_means_no_store():
+    from cats_mcp.http.resume_text import build_store
+
+    assert build_store("") is None
+    assert build_store("   ") is None
 
 
 # --- Bounds -------------------------------------------------------------------

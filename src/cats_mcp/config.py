@@ -116,6 +116,28 @@ class Settings(BaseSettings):
     # caching at all.
     cache_reference_data: bool = True
 
+    # --- Resume text cache --------------------------------------------------
+    # Extracted resume text is held in process memory by default, which means it
+    # is gone on restart and not shared between replicas. Set a URL to persist it
+    # instead. Empty is the default deliberately: persisting resume text stores
+    # personal data - names, addresses, employment history - outside CATS, which
+    # is a decision to make on purpose rather than inherit.
+    #
+    #   redis://host:6379/0     shared across replicas, survives restart
+    #   valkey://host:6379/0    same, Valkey
+    #   disk:///var/cache/cats  survives restart on a persistent volume only
+    #
+    # Requires the matching extra (`cats-mcp-server[redis-cache]` or `[disk-cache]`).
+    # The server refuses to start if a URL is set without it, rather than
+    # silently running with no persistence.
+    resume_cache_url: str = ""
+
+    # Retention, not staleness. Attachment bytes are immutable, so cached text
+    # can never go stale and needs no TTL for correctness. A persistent store
+    # wants one for a different reason: bounding how long a candidate's resume
+    # sits outside the ATS. Two days still covers every repeat sweep.
+    resume_cache_ttl_seconds: int = 172_800
+
     # --- HTTP client --------------------------------------------------------
     request_timeout: float = 30.0
     max_retries: int = 4

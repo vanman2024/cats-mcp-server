@@ -38,7 +38,7 @@ from cats_mcp.discovery.profiles import transforms_for
 from cats_mcp.http.client import CATSClient
 from cats_mcp.http.correlation import configure_logging, get_logger
 from cats_mcp.http.custom_fields import CustomFieldResolver
-from cats_mcp.http.resume_text import ResumeTextCache
+from cats_mcp.http.resume_text import ResumeTextCache, build_store
 from cats_mcp.http.site import UIDomainResolver
 from cats_mcp.observability import build_middleware
 from cats_mcp.registry.build import register_all
@@ -149,7 +149,14 @@ def create_server(
     # Extracted resume text, keyed per account by attachment id. Attachment
     # bytes are immutable - a revised resume arrives as a new id - so this is
     # cacheable in a way record data is not. See http/resume_text.py.
-    resume_text = ResumeTextCache()
+    #
+    # Memory only unless CATS_RESUME_CACHE_URL is set. Built here rather than
+    # lazily so a bad cache URL fails at startup instead of on somebody's sweep.
+    resume_text = ResumeTextCache(
+        build_store(settings.resume_cache_url),
+        ttl_seconds=settings.resume_cache_ttl_seconds,
+    )
+    logger.info("%s", resume_text.describe())
 
     registered = register_all(
         mcp,
