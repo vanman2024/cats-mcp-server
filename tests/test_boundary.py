@@ -387,6 +387,7 @@ COMPOSITE_CALLS: tuple[tuple[str, dict], ...] = (
     ("get_job_requirements", {"job_ids": [7]}),
     ("get_candidate_custom_field_values", {"candidate_ids": [42]}),
     ("get_job_custom_field_values", {"job_ids": [7]}),
+    ("get_candidate_resumes", {"candidate_ids": [42]}),
 )
 
 
@@ -478,6 +479,13 @@ KNOWN_LARGE_LITERALS: frozenset[tuple[str, int, int]] = frozenset(
         # 1MB, used to size the inline-attachment limit and its error message.
         ("registry/build.py", 486, 1_048_576),
         ("registry/build.py", 487, 1_048_576),
+        # Character ceiling on extracted resume text, not an id. A resume runs
+        # to a few thousand characters; this bounds a pathological document.
+        ("documents.py", 53, 40_000),
+        # 48 hours in seconds: how long extracted resume text may persist in a
+        # shared cache. A retention bound, not a staleness one - see
+        # http/resume_text.py.
+        ("config.py", 139, 172_800),
     }
 )
 

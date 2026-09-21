@@ -1,0 +1,435 @@
+"""Batch resume reading, and the download it must not repeat.
+
+A live review of 21 candidates spent 27 CATS requests because two files were
+fetched more than once and nothing retained what had already been read. These
+tests hold that line: an attachment id already seen costs no second download,
+and an unreadable resume is reported distinctly rather than as an empty one.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import zipfile
+
+import httpx2
+from fastmcp import Client, FastMCP
+
+from cats_mcp.composites import resumes
+from cats_mcp.config import DiscoveryMode, Settings
+from cats_mcp.credentials.base import CATSCredential, CredentialProvider
+from cats_mcp.http.client import CATSClient
+from cats_mcp.http.resume_text import ResumeTextCache
+
+W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+
+class StubCredentials(CredentialProvider):
+    async def resolve(self, context=None) -> CATSCredential:
+        return CATSCredential(api_key="k", base_url="https://api.catsone.com/v3")
+
+    def describe(self) -> str:
+        return "stub"
+
+
+def build(handler, cache: ResumeTextCache | None = None):
+    settings = Settings(api_key="k", discovery_mode=DiscoveryMode.RAW)
+    client = CATSClient(settings, StubCredentials(), transport=httpx2.MockTransport(handler))
+    mcp = FastMCP("test")
+    resumes.register(
+        mcp,
+        lambda: client,
+        StubCredentials(),
+        # `is not None`, never `or`: a cold cache used to be falsy, which
+        # silently replaced a configured one with a fresh empty cache.
+        cache if cache is not None else ResumeTextCache(),
+        enforce_auth=False,
+    )
+    return mcp
+
+
+def collection(key, rows):
+    return {"count": len(rows), "total": len(rows), "_embedded": {key: rows}}
+
+
+def docx_bytes(paragraphs: list[str]) -> bytes:
+    body = "".join(f"<w:p><w:r><w:t>{t}</w:t></w:r></w:p>" for t in paragraphs)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            f'<w:document xmlns:w="{W_NS}"><w:body>{body}</w:body></w:document>',
+        )
+    return buffer.getvalue()
+
+
+def attachments_for(attachment_id: int, filename: str, is_resume: bool = True):
+    return collection(
+        "attachments",
+        [
+            {
+                "id": attachment_id,
+                "filename": filename,
+                "is_resume": is_resume,
+                "date_created": "2026-06-01T10:00:00+00:00",
+            }
+        ],
+    )
+
+
+def make_handler(bodies: dict[int, bytes], calls: list[str]):
+    """Serve an attachment list per candidate and file bytes per attachment."""
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        path = request.url.path
+        calls.append(path)
+
+        if path.endswith("/attachments"):
+            candidate_id = int(path.split("/candidates/")[1].split("/")[0])
+            # Attachment id is derived from the candidate so each has its own.
+            return httpx2.Response(200, json=attachments_for(900 + candidate_id, "cv.docx"))
+
+        if "/attachments/" in path and path.endswith("/download"):
+            attachment_id = int(path.split("/attachments/")[1].split("/")[0])
+            return httpx2.Response(
+                200,
+                content=bodies[attachment_id],
+                headers={"Content-Type": "application/octet-stream"},
+            )
+
+        return httpx2.Response(404, json={"message": "unexpected"})
+
+    return handler
+
+
+async def call(mcp, candidate_ids):
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "get_candidate_resumes", {"candidate_ids": candidate_ids}
+        )
+    payload = result.structured_content
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    return payload
+
+
+# --- The batch itself ---------------------------------------------------------
+
+
+async def test_many_candidates_are_read_in_one_call():
+    calls: list[str] = []
+    bodies = {
+        901: docx_bytes(["Brad Willows", "Journeyman Heavy Duty Mechanic"]),
+        902: docx_bytes(["Brady Anderson", "Millwright, mining"]),
+        903: docx_bytes(["Donald Fraser", "Red Seal 2011"]),
+    }
+    mcp = build(make_handler(bodies, calls))
+
+    payload = await call(mcp, [1, 2, 3])
+
+    assert payload["count"] == 3
+    assert payload["extracted"] == 3
+    texts = " ".join(row["text"] for row in payload["resumes"])
+    assert "Brad Willows" in texts
+    assert "Donald Fraser" in texts
+    # Three attachment lists plus three downloads, and nothing more.
+    assert payload["execution"]["requests_used"] == 6
+
+
+async def test_docx_is_read_rather_than_reported_unsupported():
+    """DOCX was one of the three formats a live review could not read at all."""
+    calls: list[str] = []
+    bodies = {901: docx_bytes(["Ian Adams", "Heavy equipment operator"])}
+    mcp = build(make_handler(bodies, calls))
+
+    payload = await call(mcp, [1])
+    row = payload["resumes"][0]
+
+    assert row["outcome"] == "extracted"
+    assert "Ian Adams" in row["text"]
+
+
+# --- The download that must not repeat ----------------------------------------
+
+
+async def test_a_second_sweep_does_not_download_again():
+    """The measured failure: the same file fetched more than once in one review."""
+    calls: list[str] = []
+    bodies = {901: docx_bytes(["Brad Willows", "Journeyman HD Mechanic"])}
+    cache = ResumeTextCache()
+    mcp = build(make_handler(bodies, calls), cache)
+
+    first = await call(mcp, [1])
+    downloads_after_first = sum(1 for path in calls if path.endswith("/download"))
+
+    second = await call(mcp, [1])
+    downloads_after_second = sum(1 for path in calls if path.endswith("/download"))
+
+    assert downloads_after_first == 1
+    assert downloads_after_second == 1, "the attachment was downloaded twice"
+
+    assert first["resumes"][0]["from_cache"] is False
+    assert second["resumes"][0]["from_cache"] is True
+    assert second["cache_hits"] == 1
+    assert second["resumes"][0]["text"] == first["resumes"][0]["text"]
+
+
+async def test_the_attachment_list_is_still_fetched_every_time():
+    """Which attachment is the resume changes when someone uploads a newer one.
+
+    Only the bytes behind a chosen attachment id are retained. Caching the
+    choice would serve a stale resume after an upload, which is exactly the
+    staleness failure observability.py forbids.
+    """
+    calls: list[str] = []
+    bodies = {901: docx_bytes(["Brad Willows", "Journeyman HD Mechanic"])}
+    cache = ResumeTextCache()
+    mcp = build(make_handler(bodies, calls), cache)
+
+    await call(mcp, [1])
+    await call(mcp, [1])
+
+    listings = [path for path in calls if path.endswith("/attachments")]
+    assert len(listings) == 2
+
+
+# --- Unreadable resumes stay visible ------------------------------------------
+
+
+async def test_a_candidate_with_no_resume_is_reported_not_dropped():
+    calls: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        calls.append(request.url.path)
+        return httpx2.Response(200, json=collection("attachments", []))
+
+    payload = await call(build(handler), [1])
+    row = payload["resumes"][0]
+
+    assert row["found"] is False
+    assert row["outcome"] == "none"
+    assert payload["missing"] == 1
+    assert payload["extracted"] == 0
+
+
+async def test_an_unreadable_format_is_counted_separately_from_a_read_one():
+    """'unreadable' must not be silently folded into a low extracted count."""
+    calls: list[str] = []
+    bodies = {
+        901: docx_bytes(["Brad Willows", "Journeyman HD Mechanic"]),
+        902: b"{\\rtf1 some rtf that this server does not parse}",
+    }
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        path = request.url.path
+        calls.append(path)
+        if path.endswith("/attachments"):
+            candidate_id = int(path.split("/candidates/")[1].split("/")[0])
+            name = "cv.docx" if candidate_id == 1 else "notes.rtf"
+            return httpx2.Response(200, json=attachments_for(900 + candidate_id, name))
+        attachment_id = int(path.split("/attachments/")[1].split("/")[0])
+        return httpx2.Response(200, content=bodies[attachment_id])
+
+    payload = await call(build(handler), [1, 2])
+
+    assert payload["extracted"] == 1
+    assert payload["unreadable"] == 1
+    unreadable = [r for r in payload["resumes"] if r["outcome"] == "unsupported"]
+    assert len(unreadable) == 1
+    assert "download_attachment" in unreadable[0]["note"]
+
+
+async def test_a_photographed_resume_is_reported_as_an_image_not_a_failure():
+    calls: list[str] = []
+    bodies = {901: b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 400}
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        path = request.url.path
+        calls.append(path)
+        if path.endswith("/attachments"):
+            return httpx2.Response(200, json=attachments_for(901, "resume_scan.jpg"))
+        return httpx2.Response(200, content=bodies[901])
+
+    payload = await call(build(handler), [1])
+    row = payload["resumes"][0]
+
+    assert row["found"] is True
+    assert row["outcome"] == "image"
+    assert payload["images"] == 1
+    # Readable, just not as text. It must not be counted as broken.
+    assert payload["unreadable"] == 0
+    assert "download_attachment" in row["note"]
+
+
+async def test_an_unnamed_photo_is_surfaced_rather_than_reported_as_no_resume():
+    """A photographed resume is often called IMG_4032.jpg and matches no heuristic.
+
+    Reporting only "no resume" would say a candidate has nothing on file while
+    their resume sits there as a photo. This does not guess it IS the resume -
+    an unflagged image is as likely to be a ticket - it reports that it exists.
+    """
+    calls: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        calls.append(request.url.path)
+        return httpx2.Response(
+            200,
+            json=collection(
+                "attachments",
+                [
+                    {
+                        "id": 901,
+                        "filename": "IMG_4032.jpg",
+                        "is_resume": False,
+                        "date_created": "2026-06-01T10:00:00+00:00",
+                    }
+                ],
+            ),
+        )
+
+    payload = await call(build(handler), [1])
+    row = payload["resumes"][0]
+
+    assert row["found"] is False
+    assert row["outcome"] == "none"
+    assert len(row["image_attachments"]) == 1
+    assert row["image_attachments"][0]["filename"] == "IMG_4032.jpg"
+    assert "IMG_4032.jpg" in row["note"] or "image attachment" in row["note"]
+    # No download was spent guessing.
+    assert not [path for path in calls if path.endswith("/download")]
+
+
+async def test_a_candidate_with_no_attachments_at_all_says_so_plainly():
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json=collection("attachments", []))
+
+    payload = await call(build(handler), [1])
+    row = payload["resumes"][0]
+
+    assert row["outcome"] == "none"
+    assert row["image_attachments"] == []
+    assert "no attachments" in row["note"].lower()
+
+
+async def test_one_candidate_failing_does_not_lose_the_others():
+    calls: list[str] = []
+    bodies = {902: docx_bytes(["Brady Anderson", "Millwright"])}
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        path = request.url.path
+        calls.append(path)
+        if path.endswith("/attachments"):
+            candidate_id = int(path.split("/candidates/")[1].split("/")[0])
+            if candidate_id == 1:
+                return httpx2.Response(500, json={"message": "boom"})
+            return httpx2.Response(200, json=attachments_for(900 + candidate_id, "cv.docx"))
+        attachment_id = int(path.split("/attachments/")[1].split("/")[0])
+        return httpx2.Response(200, content=bodies[attachment_id])
+
+    payload = await call(build(handler), [1, 2])
+
+    assert payload["extracted"] == 1
+    assert "Brady Anderson" in payload["resumes"][0]["text"]
+    assert payload["execution"]["errors"], "the failed candidate should be reported"
+
+
+# --- The shared store tier ----------------------------------------------------
+
+
+async def test_a_restart_keeps_the_text_when_a_store_is_configured():
+    """Process memory is gone on restart; a store is what makes it survive.
+
+    Simulated the way it actually happens: a brand new ResumeTextCache, empty
+    memory, same backing store - which is also what a second replica looks like.
+    """
+    from key_value.aio.stores.memory import MemoryStore
+
+    store = MemoryStore()
+    calls: list[str] = []
+    bodies = {901: docx_bytes(["Brad Willows", "Journeyman HD Mechanic"])}
+    handler = make_handler(bodies, calls)
+
+    before = await call(build(handler, ResumeTextCache(store)), [1])
+    assert before["resumes"][0]["from_cache"] is False
+
+    # The process restarts. New cache object, nothing in memory, same store.
+    after = await call(build(handler, ResumeTextCache(store)), [1])
+
+    assert after["resumes"][0]["from_cache"] is True
+    assert after["resumes"][0]["text"] == before["resumes"][0]["text"]
+    assert sum(1 for path in calls if path.endswith("/download")) == 1
+
+
+async def test_a_broken_store_degrades_to_a_download_rather_than_failing():
+    """A cache is an optimisation. It must never be able to fail a real call."""
+
+    class BrokenStore:
+        async def get(self, key, *, collection=None):
+            raise RuntimeError("redis is down")
+
+        async def put(self, key, value, *, collection=None, ttl=None):
+            raise RuntimeError("redis is down")
+
+    calls: list[str] = []
+    bodies = {901: docx_bytes(["Brad Willows", "Journeyman HD Mechanic"])}
+    mcp = build(make_handler(bodies, calls), ResumeTextCache(BrokenStore()))
+
+    payload = await call(mcp, [1])
+
+    assert payload["extracted"] == 1
+    assert "Brad Willows" in payload["resumes"][0]["text"]
+
+
+async def test_an_entry_written_by_an_older_version_is_treated_as_a_miss():
+    """A shared store outlives a deployment and can hold entries it no longer understands."""
+    from key_value.aio.stores.memory import MemoryStore
+
+    store = MemoryStore()
+    await store.put(
+        "unresolved:901",
+        {"outcome": "a_shape_this_version_does_not_know", "text": "stale"},
+        collection="cats-resume-text",
+    )
+
+    calls: list[str] = []
+    bodies = {901: docx_bytes(["Brad Willows", "Journeyman HD Mechanic"])}
+    payload = await call(build(make_handler(bodies, calls), ResumeTextCache(store)), [1])
+
+    assert payload["extracted"] == 1
+    assert "Brad Willows" in payload["resumes"][0]["text"]
+    assert "stale" not in payload["resumes"][0]["text"]
+
+
+# --- Configuration ------------------------------------------------------------
+
+
+def test_an_unsupported_cache_url_fails_at_startup():
+    """Not on somebody's sweep. A bad cache URL should look like what it is."""
+    import pytest
+
+    from cats_mcp.http.resume_text import ResumeCacheUnavailableError, build_store
+
+    with pytest.raises(ResumeCacheUnavailableError, match="not a supported cache URL"):
+        build_store("memcache://localhost:11211")
+
+
+def test_no_url_means_no_store():
+    from cats_mcp.http.resume_text import build_store
+
+    assert build_store("") is None
+    assert build_store("   ") is None
+
+
+# --- Bounds -------------------------------------------------------------------
+
+
+async def test_duplicate_ids_are_collapsed():
+    calls: list[str] = []
+    bodies = {901: docx_bytes(["Brad Willows", "Journeyman HD Mechanic"])}
+    mcp = build(make_handler(bodies, calls))
+
+    payload = await call(mcp, [1, 1, 1])
+
+    assert payload["requested"] == 1
+    assert payload["count"] == 1
+    assert sum(1 for path in calls if path.endswith("/download")) == 1

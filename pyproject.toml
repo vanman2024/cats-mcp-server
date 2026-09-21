@@ -13,10 +13,17 @@ requires-python = ">=3.10"
 # testing. Exact pins are what keeps the prerelease surface to fastmcp alone.
 #
 # FastMCP 4 uses httpx2, not httpx. Do not add httpx back.
+#
+# pypdf is the only document parser taken as a dependency. DOCX is a zip
+# containing word/document.xml, and HTML and plain text need nothing at all, so
+# those are handled with the standard library in cats_mcp.documents. PDF is the
+# one format with no reasonable stdlib route. pypdf is pure Python with no
+# native build step, which keeps this installable everywhere the rest is.
 dependencies = [
     "fastmcp==4.0.0b2",
     "httpx2==2.10.0",
     "pydantic==2.13.4",
+    "pypdf==6.16.2",
     "python-dotenv==1.2.2",
 ]
 
@@ -34,6 +41,19 @@ dev = [
 # if the mode is selected without it rather than failing on first tool call.
 code-mode = [
     "fastmcp[code-mode]==4.0.0b2",
+]
+
+# CATS_RESUME_CACHE_URL requires one of these, matching the URL scheme. Without
+# it the server refuses to start rather than silently keeping resume text in
+# process memory while the operator believes it is shared.
+#
+# py-key-value-aio already ships as a fastmcp dependency; these extras add only
+# the backend client. Pinned exactly for the same prerelease reason as above.
+redis-cache = [
+    "py-key-value-aio[redis]==0.4.5",
+]
+disk-cache = [
+    "py-key-value-aio[disk]==0.4.5",
 ]
 
 [tool.uv]
